@@ -63,8 +63,8 @@ body {
 }
 
 .studio-main-column > .studio-scroll-content {
-  display: flex;
-  flex-direction: column;
+  /* Let tall specimens contribute their full height to this scroll area. */
+  display: block;
   grid-row: 2;
   min-width: 0;
   min-height: 0;
@@ -120,4 +120,17 @@ body {
   .studio-main-column > .studio-scroll-content {
     padding: 0 14px;
   }
+}
+
+/* Keep all five workspaces reachable without squeezing the project actions. */
+@media (max-width: 1150px) {
+  .studio-viewport > .studio-header { height: auto; min-height: 104px; flex-wrap: wrap; padding-top: 12px; }
+  .studio-header .workspace-tabs { order: 3; width: 100%; height: auto; min-height: 40px; flex-wrap: wrap; justify-content: center; gap: 0 20px; }
+  .workspace-tabs button { min-height: 38px; white-space: nowrap; }
+  .studio-header .header-actions { margin-left: auto; }
+}
+@media (max-width: 600px) {
+  .studio-header .workspace-tabs { column-gap: 12px; }
+  .workspace-tabs button { font-size: 10px; }
+  .workspace-tabs button > svg { display: none; }
 }

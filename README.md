@@ -14,7 +14,7 @@ Open http://localhost:3000. For production, run `npm run build` and `npm start`.
 1. Describe a feeling, or select a starter vibe. Choose AI to generate a direction from your brief using the configured server key, or Local for a keyword-based direction with no API credits. Only clicking Generate with AI sends a model request.
 2. Open the vibe continuum to adjust warmth, density, contrast, playfulness, and tactility.
 3. Edit color, typography, shape, depth, and motion. Lock categories you want to keep, then roll the remaining categories.
-4. Try marketing, dashboard, and checkout previews, including mobile and dark mode. Browse interactive component specimens.
+4. Try marketing, dashboard, and checkout previews, including mobile and dark mode. Browse the scrollable interactive component specimens. Open Microinteractions for a dedicated motion workspace with shared duration, easing, and hover-scale tokens; Quiet, Expressive, and Direct presets; slower playback; and reduced-motion preview. Six local demos cover hover/press, travel, disclosure, loading/success, toggles, and entrances.
 5. Review calculated color contrast, adjust failing colors, and preview color vision simulations or reduced motion.
 6. Save snapshots, compare them with your current direction, or export CSS variables and Design Tokens JSON.
 7. Open Moodboard to collect images, source links, and notes. Filter or search references, edit them, and use their written notes to explore a direction. Images serve as visual references; the local engine does not analyze image content.
