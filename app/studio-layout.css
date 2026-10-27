@@ -1,0 +1,123 @@
+/* Header, tools, and preview toolbar sit outside the only page scroll area. */
+html,
+body {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+.studio-viewport {
+  --studio-tools-width: 340px;
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
+  overflow: clip;
+}
+
+.studio-viewport > .studio-header {
+  position: relative;
+  z-index: 40;
+  height: 56px;
+}
+
+.studio-viewport > .studio-workspace {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--studio-tools-width) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+  overflow: clip;
+}
+
+.studio-workspace > .studio-tools {
+  position: relative;
+  align-self: stretch;
+  min-width: 0;
+  min-height: 0;
+  overflow: clip;
+}
+
+.studio-main-column {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  overflow: clip;
+  background: #fafafa;
+}
+
+.studio-main-column > .canvas-toolbar {
+  position: relative;
+  z-index: 10;
+  grid-row: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 16px 24px 14px;
+  background: #fafafa;
+}
+
+.studio-main-column > .studio-scroll-content {
+  display: flex;
+  flex-direction: column;
+  grid-row: 2;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  padding: 0 24px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+}
+
+.studio-scroll-content > * {
+  flex-shrink: 0;
+}
+
+/* Moodboards have no preview toolbar, but retain the same scroll boundary. */
+.studio-scroll-content > .moodboard-view {
+  padding-top: 16px;
+}
+
+@media (min-width: 761px) and (max-width: 1100px) {
+  .studio-viewport { --studio-tools-width: 300px; }
+}
+
+@media (max-width: 760px) {
+  .studio-viewport > .studio-header {
+    height: auto;
+    min-height: 104px;
+  }
+
+  .studio-viewport > .studio-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .studio-workspace > .studio-tools {
+    display: none;
+  }
+
+  .studio-workspace > .studio-tools.tools-open {
+    position: absolute;
+    inset: 0 auto 0 0;
+    z-index: 30;
+    display: block;
+    width: min(340px, calc(100vw - 24px));
+    overflow: clip;
+  }
+
+  .studio-main-column > .canvas-toolbar {
+    padding: 14px 14px 12px;
+  }
+
+  .studio-main-column > .studio-scroll-content {
+    padding: 0 14px;
+  }
+}
