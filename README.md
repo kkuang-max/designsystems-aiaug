@@ -11,7 +11,7 @@ Open http://localhost:3000. For production, run `npm run build` and `npm start`.
 
 ## Explore a direction
 
-1. Describe a feeling, or select a starter vibe. Search uses a local keyword engine; it does not call a model or require an API key.
+1. Describe a feeling, or select a starter vibe. Choose AI to generate a direction from your brief using the configured server key, or Local for a keyword-based direction with no API credits. Only clicking Generate with AI sends a model request.
 2. Open the vibe continuum to adjust warmth, density, contrast, playfulness, and tactility.
 3. Edit color, typography, shape, depth, and motion. Lock categories you want to keep, then roll the remaining categories.
 4. Try marketing, dashboard, and checkout previews, including mobile and dark mode. Browse interactive component specimens.
@@ -33,4 +33,12 @@ Contrast checks cover selected text/background combinations. Color vision simula
 - **References:** Would a personal moodboard help connect abstract words with visual examples?
 - **Handoff:** Should a saved direction include a short explanation of why the choices fit the brief?
 
-The existing Claude API integration has been removed. This project has no model provider dependency.
+## AI setup and verification
+
+The server reads `ANTHROPIC_API_KEY` from `.env.local`. The key is never sent to the browser. `ANTHROPIC_MODEL` optionally overrides the default `claude-haiku-5-5` model. Restart the dev server after changing environment variables. AI generation uses structured output restricted to the fonts, token ranges, and styles supported by the studio; locked categories are preserved. Automatic retries are disabled.
+
+Opening the studio only checks whether a key is configured; it does not validate the key with the provider or generate anything. Presets, sliders, rolls, moodboard exploration, and layout changes run locally. Clicking Generate with AI uses API credits. Cancelling a request that has already been sent may still use credits.
+
+Run `node --test tests/design-generation.test.mjs` for mocked API tests that never contact a model. Build with `npm run build -- --webpack` if the environment blocks Turbopack’s local worker ports.
+
+The header and tools occupy a fixed viewport shell; the main canvas scrolls. Token editors and vibe sliders open in dialogs so expanded controls do not push the menu down. On small screens, the Tools button opens the menu over the canvas.

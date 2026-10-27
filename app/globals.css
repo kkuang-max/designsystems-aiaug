@@ -17,3 +17,155 @@
 @media(max-width:1200px){.reference-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.moodboard-heading{flex-wrap:wrap}.workspace-tabs{gap:14px}.studio-header{gap:13px}.project-label{max-width:95px}}
 @media(max-width:760px){.workspace-tabs{gap:20px}.workspace-tabs button{font-size:10px;gap:5px}.workspace-tabs svg{width:13px}.moodboard-heading{margin-top:5px;gap:17px}.moodboard-heading h1{font-size:28px}.moodboard-heading p{line-height:1.8}.board-tools{gap:10px}.board-filters{gap:2px}.board-filters button{padding:5px 8px}.reference-grid{gap:12px}.reference-content{padding:13px}.reference-content h2{font-size:17px}.reference-art,.reference-card>img{height:175px}.reference-palette{height:70px}.reference-actions .text-button{font-size:8px}.reference-actions{gap:0}.board-storage{font-size:7px;line-height:1.8}}
 @media(max-width:430px){.reference-grid{grid-template-columns:1fr}.reference-art,.reference-card>img{height:220px}.reference-content{padding:18px}.reference-content h2{font-size:21px}}
+
+/* Compact workbench proportions from the Hybrid layout reference. */
+.studio-header {
+  height: 56px;
+  background: #fff;
+}
+.studio-wordmark { font-size: 16px; letter-spacing: -.4px; }
+.controls-panel { padding: 22px 24px 16px; background: #fff; }
+.panel-intro { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.panel-intro h1 {
+  margin: 0;
+  font: 500 18px/1.35 Geist, sans-serif;
+  letter-spacing: -.18px;
+}
+.panel-intro > button { color: #8b8b85; }
+.vibe-form { margin-top: 14px; }
+.vibe-search { min-height: 44px; border-color: #dadad7; box-shadow: none; }
+.vibe-search input { font-size: 12px; color: #333; }
+.vibe-search button { background: #222; }
+.starting-points { margin-top: 8px; color: #85857e; font-size: 10px; }
+.starting-points summary { cursor: pointer; width: fit-content; }
+.starting-points summary:focus-visible { outline: 2px solid #7c8965; outline-offset: 3px; }
+.starting-points .prompt-starters { margin-top: 8px; }
+.vibe-tags { margin: 12px 0 14px; gap: 6px; }
+.vibe-tags > span { border-radius: 999px; background: #f7f7f5; color: #666; font-size: 10px; padding: 3px 8px; }
+.vibe-sliders { padding: 9px 10px; background: #fff; }
+.section-toggle { font-size: 11px; }
+.vibe-summary { font-size: 10px; padding-top: 4px; color: #777; }
+.tokens-heading { margin: 18px 0 12px; padding-top: 15px; }
+.tokens-heading h2 { font-size: 11px; text-transform: uppercase; color: #777; }
+.roll-button { font-size: 10px; padding: 5px 8px; }
+.token-stack { gap: 12px; }
+.token-section { border-color: #e7e7e5; border-radius: 10px; }
+.token-section.expanded { background: #fafaf9; border-color: #dadad7; }
+.token-section-heading { padding: 12px; }
+.token-disclosure strong { font-size: 12px; }
+.token-summary { font-size: 10px; color: #777; }
+.token-section-body { padding: 0 14px 12px; }
+.range-control { margin: 10px 0; }
+.range-control > span { font-size: 11px; margin-bottom: 6px; color: #666; }
+.range-control output { font-size: 10px; }
+.color-fields { gap: 6px 10px; }
+.color-fields > label { font-size: 9px; }
+.color-fields > label > input { font-size: 8px; width: 56px; }
+.palette-strip { height: 30px; }
+.depth-options button { font-size: 10px; }
+.panel-footnote { padding: 14px 2px 0; font-size: 10px; }
+.canvas-area { padding: 16px 24px 0; background: #fafafa; }
+.canvas-toolbar { margin-bottom: 14px; }
+.segmented { background: #f0f0ed; }
+.segmented button.selected { background: #fff; color: #333; }
+.button.dark { background: #222; border-color: #222; }
+.studio-footer { padding: 7px 24px; background: #fff; }
+
+@media (min-width: 761px) {
+  .studio-shell { height: 100dvh; min-height: 0; overflow: hidden; }
+  .studio-header, .studio-footer { flex-shrink: 0; }
+  .workspace { grid-template-columns: 340px minmax(0, 1fr); min-height: 0; overflow: hidden; }
+  .controls-panel, .canvas-area { min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+  .controls-panel { overscroll-behavior-y: contain; scrollbar-color: #d5d8ce transparent; }
+  .canvas-area { scrollbar-gutter: stable; }
+}
+@media (min-width: 761px) and (max-width: 1100px) {
+  .workspace { grid-template-columns: 300px minmax(0, 1fr); }
+  .controls-panel { padding: 20px 18px 14px; }
+  .color-fields { grid-template-columns: 1fr; }
+}
+@media (min-width: 761px) and (max-height: 800px) {
+  .controls-panel { padding-top: 16px; }
+  .tokens-heading { margin-top: 12px; padding-top: 12px; }
+  .token-stack { gap: 8px; }
+  .token-section-heading { padding: 9px 11px; }
+  .range-control { margin: 8px 0; }
+  .panel-footnote { padding-top: 10px; }
+}
+@media (max-width: 760px) {
+  .studio-header { height: auto; }
+  .panel-intro h1 { margin: 0; font-size: 18px; }
+  .controls-panel { padding: 20px; gap: 12px 16px; }
+  .vibe-form { margin-top: 0; }
+  .starting-points { grid-column: 1 / -1; margin: 0; }
+  .vibe-tags { margin: 0; }
+  .tokens-heading { margin: 2px 0 -4px; padding-top: 12px; }
+  .token-stack { gap: 10px; }
+  .token-section-heading { padding: 10px; }
+  .token-disclosure strong { font-size: 11px; }
+  .token-summary { font-size: 9px; }
+  .token-section-body { padding: 0 10px 10px; }
+  .canvas-area { padding: 16px 14px 0; }
+}
+
+/* The viewport is the workbench; only its main canvas scrolls. */
+html, body { height: 100%; overflow: hidden; }
+.studio-shell { position: fixed; inset: 0; height: 100dvh; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+.studio-header { position: sticky; top: 0; z-index: 40; flex: 0 0 56px; }
+.studio-footer { flex-shrink: 0; }
+.workspace { position: relative; flex: 1 1 0; min-height: 0; overflow: hidden; grid-template-rows: minmax(0, 1fr); }
+.controls-panel { position: sticky; top: 0; align-self: stretch; min-height: 0; overflow: visible; padding-top: 18px; }
+.canvas-area { height: 100%; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.canvas-toolbar { position: sticky; top: -16px; z-index: 10; padding: 12px 0; background: #fafafa; flex-shrink: 0; }
+.canvas-area > :not(.canvas-toolbar) { flex-shrink: 0; }
+.vibe-search { align-items: flex-start; }
+.vibe-search > svg { margin-top: 5px; }
+.vibe-search textarea { width: 100%; min-width: 0; resize: vertical; max-height: 100px; min-height: 48px; outline: none; border: 0; background: transparent; color: #333; font-size: 12px; line-height: 1.7; }
+.generation-mode { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 8px 0; color: #8a9380; font-size: 9px; }
+.generation-mode label { display: flex; gap: 5px; align-items: center; }
+.generation-mode select { border: 1px solid #dce3d0; background: #fff; border-radius: 4px; color: #637450; padding: 4px; font-size: 9px; }
+.generate-button { width: 100%; }
+.generation-hint { font-size: 9px; color: #8f977e; margin-top: 6px; }
+.generation-error { font-size: 10px; color: #996539; background: #f5ebdf; padding: 10px; border-radius: 5px; margin-top: 8px; }
+.generation-error button { display: block; margin-top: 6px; text-decoration: underline; }
+.token-editor { padding: 18px 0 0; }
+.token-editor .select-control { font-size: 12px; }
+.token-editor .select-control select { padding: 9px; font-size: 12px; }
+.token-editor .range-control { margin: 22px 0; }
+.token-editor .range-control > span { font-size: 12px; }
+.token-editor .color-fields { grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 18px; }
+.token-editor .color-fields > label { font-size: 11px; }
+.token-editor .color-fields > label > input { font-size: 11px; width: 75px; }
+.token-editor .color-dot { width: 16px; height: 16px; }
+.token-editor .palette-strip { height: 60px; }
+.studio-modal .vibe-ranges label { margin: 22px 0; }
+.studio-modal .vibe-ranges label > span { font-size: 12px; margin-bottom: 12px; }
+.tools-toggle, .tools-backdrop { display: none; }
+@media (max-width: 760px) {
+  .studio-header { flex: 0 0 auto; min-height: 104px; }
+  .workspace { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .controls-panel { display: none; }
+  .controls-panel.tools-open { display: block; position: absolute; top: 0; bottom: 0; left: 0; width: min(340px, calc(100vw - 24px)); z-index: 30; box-shadow: 10px 0 30px #29332220; }
+  .controls-panel .vibe-form { margin-top: 14px; }
+  .controls-panel .vibe-tags { margin: 10px 0; }
+  .controls-panel .token-stack { display: flex; }
+  .controls-panel .tokens-heading { margin: 14px 0 10px; }
+  .tools-toggle { display: inline-flex; }
+  .tools-backdrop { display: block; position: absolute; inset: 0; background: #29332240; z-index: 25; }
+  .studio-header .header-actions { gap: 3px; }
+  .snapshots-trigger svg, .header-actions > .button.dark svg { display: none; }
+}
+@media (max-height: 700px) {
+  .controls-panel { padding-top: 10px; padding-bottom: 10px; }
+  .controls-panel .vibe-form { margin-top: 8px; }
+  .controls-panel .token-section-heading { padding: 8px 10px; }
+  .controls-panel .token-stack { gap: 7px; }
+  .controls-panel .panel-footnote { display: none; }
+  .controls-panel .vibe-tags { margin: 7px 0; }
+  .controls-panel .tokens-heading { margin-top: 10px; padding-top: 9px; }
+}
+@media (max-height: 700px) {
+  .controls-panel .starting-points, .controls-panel .vibe-tags, .controls-panel .vibe-summary { display: none; }
+  .controls-panel .vibe-sliders { margin-top: 10px; }
+  .studio-footer { display: none; }
+}
