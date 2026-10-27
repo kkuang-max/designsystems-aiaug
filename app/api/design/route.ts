@@ -1,4 +1,4 @@
-import { anthropic } from "@ai-sdk/anthropic";
+import { createAnthropic } from "@ai-sdk/anthropic";
 import { APICallError, generateText, Output } from "ai";
 import { directionSchema, isGeneratedDirection, isLocks, isVibes } from "@/lib/design-generation";
 import { isDesignSystem, mergeUnlocked } from "@/lib/design-system";
@@ -6,9 +6,18 @@ import { isDesignSystem, mergeUnlocked } from "@/lib/design-system";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+function readApiKey() {
+  // Accept the common case of an entire .env assignment pasted into Vercel's Value field.
+  let key = (process.env.ANTHROPIC_API_KEY || "").trim().replace(/^ANTHROPIC_API_KEY\s*=\s*/, "");
+  if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {
+    key = key.slice(1, -1).trim();
+  }
+  return key;
+}
+
 // Configuration check only; opening the studio never invokes the model.
 export async function GET() {
-  return Response.json({ configured: !!process.env.ANTHROPIC_API_KEY?.trim() }, { headers: { "Cache-Control": "no-store" } });
+  return Response.json({ configured: !!readApiKey() }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(request: Request) {
@@ -24,8 +33,11 @@ export async function POST(request: Request) {
     return Response.json({ error: "Enter a vibe of up to 4,000 characters and valid studio options." }, { status: 400 });
   }
   if (!Object.values(body.locks).some(locked => !locked)) return Response.json({ error: "Unlock at least one token category before generating." }, { status: 400 });
-  if (!process.env.ANTHROPIC_API_KEY?.trim()) return Response.json({ error: "AI isn’t configured. Add ANTHROPIC_API_KEY to .env.local and restart the server, or use Local mode." }, { status: 503 });
+  const apiKey = readApiKey();
+  if (!apiKey) return Response.json({ error: "Claude’s key is missing from this deployment. Set ANTHROPIC_API_KEY in this Vercel project’s environment variables and redeploy.", code: "KEY_MISSING" }, { status: 503 });
+  if (/[\s"']/.test(apiKey)) return Response.json({ error: "The saved Claude key contains extra text or line breaks. In Vercel, the ANTHROPIC_API_KEY value must contain one complete key. Save it and redeploy.", code: "KEY_FORMAT" }, { status: 503 });
   try {
+    const anthropic = createAnthropic({ apiKey });
     const { output } = await generateText({
       model: anthropic(process.env.ANTHROPIC_MODEL || "claude-haiku-5-5"),
       output: Output.object({ schema: directionSchema }),
@@ -41,7 +53,8 @@ export async function POST(request: Request) {
   } catch (error) {
     if (APICallError.isInstance(error)) {
       const status = error.statusCode;
-      if (status === 401 || status === 403) return Response.json({ error: "The AI key could not authenticate. Check its permissions, or use Local mode." }, { status: 502 });
+      if (status === 401) return Response.json({ error: "Claude rejected the deployed API key as invalid, expired, or revoked (401). Replace ANTHROPIC_API_KEY in this Vercel project and redeploy.", code: "KEY_REJECTED" }, { status: 502 });
+      if (status === 403) return Response.json({ error: "Claude denied this key permission to make the request (403). Check the key’s Anthropic workspace and model access.", code: "ACCESS_DENIED" }, { status: 502 });
       if (status === 429) return Response.json({ error: "AI is busy or your usage limit was reached. Try later, or use Local mode." }, { status: 429 });
       if (status === 400 || status === 402) {
         const creditError = /credit balance|billing|purchase credits/i.test(error.message || "");

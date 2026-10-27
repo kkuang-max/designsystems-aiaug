@@ -8,6 +8,7 @@ import ts from 'typescript';
 function fixture({ key = 'test-key', output, failure } = {}) {
   const cache = new Map();
   const calls = [];
+  const providerOptions = [];
   const env = { ANTHROPIC_API_KEY: key };
   const sdk = {
     jsonSchema: (schema, options) => ({ schema, ...options }),
@@ -23,7 +24,7 @@ function fixture({ key = 'test-key', output, failure } = {}) {
     }).outputText;
     vm.runInNewContext(source, {
       module, exports: module.exports, Request, Response, AbortSignal, URL, process: { env },
-      require: name => name === 'ai' ? sdk : name === '@ai-sdk/anthropic' ? { anthropic: name => name } : load(name.endsWith('design-generation') ? 'lib/design-generation.ts' : 'lib/design-system.ts'),
+      require: name => name === 'ai' ? sdk : name === '@ai-sdk/anthropic' ? { createAnthropic: options => { providerOptions.push(options); return name => name; } } : load(name.endsWith('design-generation') ? 'lib/design-generation.ts' : 'lib/design-system.ts'),
     });
     cache.set(file, module.exports);
     return module.exports;
@@ -32,7 +33,7 @@ function fixture({ key = 'test-key', output, failure } = {}) {
   const route = load('app/api/design/route.ts');
   const body = { prompt: 'A vivid pink, editorial system for a creative studio', system: structuredClone(design.initialSystem), vibes: structuredClone(design.initialVibes), locks: { color: false, typography: false, shape: false, motion: false } };
   const request = (value = body, origin = 'http://localhost:3000') => new Request('http://localhost:3000/api/design', { method: 'POST', headers: { origin, 'Content-Type': 'application/json' }, body: JSON.stringify(value) });
-  return { route, design, body, request, calls, load };
+  return { route, design, body, request, calls, providerOptions, load };
 }
 
 test('configuration check reports availability without invoking AI or revealing a key', async () => {
@@ -115,4 +116,37 @@ test('insufficient credits produces an actionable message without exposing provi
   assert.match(body.error, /credit balance is too low/);
   assert.ok(!body.error.includes('secret-test-value'));
   assert.equal(f.calls.length, 1);
+});
+
+test('pasted env assignments, surrounding quotes, and outer whitespace are normalized before provider use', async () => {
+  const seed = fixture();
+  for (const key of ['  test-key\n', '"test-key"', "'test-key'", 'ANTHROPIC_API_KEY="test-key"']) {
+    const f = fixture({ key, output: { system: seed.body.system, vibes: seed.body.vibes } });
+    const response = await f.route.POST(f.request());
+    assert.equal(response.status, 200);
+    assert.equal(f.providerOptions[0].apiKey, 'test-key');
+    assert.ok(!(await response.text()).includes('test-key'));
+  }
+});
+
+test('embedded whitespace in a key is reported without contacting the provider', async () => {
+  const f = fixture({ key: 'test-key\nextra-text' });
+  const response = await f.route.POST(f.request());
+  assert.equal(response.status, 503);
+  assert.equal((await response.json()).code, 'KEY_FORMAT');
+  assert.equal(f.calls.length, 0);
+  assert.equal(f.providerOptions.length, 0);
+});
+
+test('invalid credentials and denied permissions have distinct safe errors', async () => {
+  for (const [statusCode, expectedCode] of [[401, 'KEY_REJECTED'], [403, 'ACCESS_DENIED']]) {
+    const f = fixture({ failure: { statusCode, message: 'private-provider-details test-key' } });
+    const response = await f.route.POST(f.request());
+    assert.equal(response.status, 502);
+    const body = await response.json();
+    assert.equal(body.code, expectedCode);
+    assert.ok(!body.error.includes('test-key'));
+    assert.ok(!body.error.includes('private-provider-details'));
+    assert.equal(f.calls.length, 1);
+  }
 });
