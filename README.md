@@ -1,36 +1,36 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# VibeCraft Studio
 
-## Getting Started
+A local design system workbench implementing **F · Hybrid**: the studio shell, guided vibe search, and lockable token cards.
 
-First, run the development server:
-
-```bash
+```sh
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000. For production, run `npm run build` and `npm start`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Explore a direction
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Describe a feeling, or select a starter vibe. Search uses a local keyword engine; it does not call a model or require an API key.
+2. Open the vibe continuum to adjust warmth, density, contrast, playfulness, and tactility.
+3. Edit color, typography, shape, depth, and motion. Lock categories you want to keep, then roll the remaining categories.
+4. Try marketing, dashboard, and checkout previews, including mobile and dark mode. Browse interactive component specimens.
+5. Review calculated color contrast, adjust failing colors, and preview color vision simulations or reduced motion.
+6. Save snapshots, compare them with your current direction, or export CSS variables and Design Tokens JSON.
+7. Open Moodboard to collect images, source links, and notes. Filter or search references, edit them, and use their written notes to explore a direction. Images serve as visual references; the local engine does not analyze image content.
 
-## Learn More
+Moodboards save separately in browser storage, with up to 30 references and a total serialized size of 2.5 MB. Uploaded PNG, JPEG, WebP, and GIF files can be up to 600 KB each. Save board downloads a JSON copy including uploaded images; remote image links require network access to display.
 
-To learn more about Next.js, take a look at the following resources:
+The current direction, locks, vibe settings, and up to 20 snapshots are saved in browser storage. Export a copy for use elsewhere. Fonts are served locally; load the selected font families in the destination project when using exported tokens.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Contrast checks cover selected text/background combinations. Color vision simulations are approximate. Preview dark mode derives a palette from the light tokens; export currently exports the light system.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Product questions to explore next
 
-## Deploy on Vercel
+- **Audience and context:** Who uses the product, what are they trying to do, and how should they feel afterward?
+- **Personality:** Should a brand feel established or experimental, expressive or restrained, familiar or distinctive?
+- **Controlled variation:** Would comparing three directions with one fixed attribute make choosing easier?
+- **References:** Would a personal moodboard help connect abstract words with visual examples?
+- **Handoff:** Should a saved direction include a short explanation of why the choices fit the brief?
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The existing Claude API integration has been removed. This project has no model provider dependency.

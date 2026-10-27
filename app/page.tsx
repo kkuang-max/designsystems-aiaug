@@ -1,65 +1,158 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { Icon } from "./components/studio-icon";
+import { Moodboard } from "./components/moodboard";
+import { Modal } from "./components/modal";
+import { CheckoutPreview, ComponentsPreview, DashboardPreview, MarketingPreview, themeStyle } from "./components/preview";
+import { applyVibes, bodyFonts, colorRoles, contrast, darkSystem, displayFonts, explorePrompt, exportSystem, fixContrast, initialSystem, initialVibes, inkOn, isDesignSystem, rollSystem, type ColorRole, type DesignSystem, type Group, type Locks, type Snapshot, type Vibes } from "@/lib/design-system";
+
+type Tab = "Preview" | "Components" | "Accessibility" | "Moodboard";
+type History = { past: DesignSystem[]; present: DesignSystem; future: DesignSystem[] };
+const storageKey = "vibecraft-studio-v1";
+const initialLocks: Locks = { color: false, typography: false, shape: false, motion: false };
+
+function Range({ label, value, min, max, step = 1, unit = "", onChange }: { label: string; value: number; min: number; max: number; step?: number; unit?: string; onChange: (value: number) => void }) {
+  return <label className="range-control"><span><span>{label}</span><output>{value}{unit}</output></span><input type="range" aria-label={label} min={min} max={max} step={step} value={value} onChange={event => onChange(Number(event.target.value))}/></label>;
+}
+function TokenSection({ title, icon, group, open, onOpen, locked, onLock, summary, children }: { title: string; icon: ReactNode; group: Group; open: boolean; onOpen: () => void; locked: boolean; onLock: () => void; summary: ReactNode; children: ReactNode }) {
+  return <section className={`token-section ${open ? "expanded" : ""}`}><div className="token-section-heading"><button className="token-disclosure" onClick={onOpen} aria-expanded={open} aria-controls={`panel-${group}`}><span className="token-symbol">{icon}</span><span><strong>{title}</strong><span className="token-summary">{summary}</span></span><Icon name="down" size={14} style={{ transform: open ? "rotate(180deg)" : undefined }}/></button><button className={`lock-button ${locked ? "locked" : ""}`} aria-label={`${locked ? "Unlock" : "Lock"} ${title.toLowerCase()}`} aria-pressed={locked} onClick={onLock} title={locked ? "Preserved when exploring or rolling" : "Lock to preserve while exploring"}><Icon name={locked ? "lock" : "unlock"} size={14}/></button></div>{open && <div id={`panel-${group}`} className="token-section-body">{children}</div>}</section>;
+}
 
 export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+  const [history, setHistory] = useState<History>({ past: [], present: initialSystem, future: [] });
+  const system = history.present;
+  const [vibes, setVibes] = useState(initialVibes);
+  const [locks, setLocks] = useState(initialLocks);
+  const [prompt, setPrompt] = useState("warm, tactile, quietly editorial");
+  const [tab, setTab] = useState<Tab>("Preview");
+  const [preview, setPreview] = useState("Marketing page");
+  const [mobile, setMobile] = useState(false);
+  const [dark, setDark] = useState(false);
+  const [vibesOpen, setVibesOpen] = useState(false);
+  const [openSections, setOpenSections] = useState<Group[]>(["color", "shape"]);
+  const [query, setQuery] = useState("");
+  const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
+  const [modal, setModal] = useState<"snapshots" | "export" | "help" | null>(null);
+  const [compareId, setCompareId] = useState("");
+  const [snapshotName, setSnapshotName] = useState("");
+  const [format, setFormat] = useState<"css" | "json">("css");
+  const [notice, setNotice] = useState("");
+  const [ready, setReady] = useState(false);
+  const [saveState, setSaveState] = useState("Saved on this device");
+  const [vision, setVision] = useState("none");
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey) || "null");
+      if (saved && isDesignSystem(saved.system)) {
+        setHistory({ past: [], present: saved.system, future: [] });
+        if (typeof saved.prompt === "string") setPrompt(saved.prompt.slice(0, 4000));
+        if (saved.vibes && Object.keys(initialVibes).every(k => typeof saved.vibes[k] === "number" && saved.vibes[k] >= 0 && saved.vibes[k] <= 100)) setVibes(saved.vibes);
+        if (saved.locks && Object.keys(initialLocks).every(k => typeof saved.locks[k] === "boolean")) setLocks(saved.locks);
+        if (Array.isArray(saved.snapshots)) setSnapshots(saved.snapshots.filter((s: Snapshot) => typeof s.id === "string" && typeof s.name === "string" && typeof s.created === "string" && isDesignSystem(s.system)).slice(0, 20));
+      }
+    } catch { setSaveState("Device storage unavailable"); }
+    setReady(true);
+    return () => { if (noticeTimer.current) clearTimeout(noticeTimer.current); };
+  }, []);
+  useEffect(() => {
+    if (!ready) return;
+    const timer = setTimeout(() => {
+      try { localStorage.setItem(storageKey, JSON.stringify({ system, vibes, locks, prompt, snapshots })); setSaveState("Saved on this device"); }
+      catch { setSaveState("Couldn’t save · export a copy"); }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [ready, system, vibes, locks, prompt, snapshots]);
+
+  function notify(message: string) {
+    setNotice(message);
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    noticeTimer.current = setTimeout(() => setNotice(""), 4200);
+  }
+  function commit(next: DesignSystem | ((current: DesignSystem) => DesignSystem)) {
+    setHistory(h => ({ past: [...h.past.slice(-59), h.present], present: typeof next === "function" ? next(h.present) : next, future: [] }));
+  }
+  function patch<K extends keyof DesignSystem>(key: K, value: DesignSystem[K]) { commit(d => ({ ...d, [key]: value })); }
+  function setColor(role: ColorRole, color: string) { commit(d => ({ ...d, colors: { ...d.colors, [role]: color } })); }
+  function undo() { setHistory(h => h.past.length ? { past: h.past.slice(0,-1), present: h.past[h.past.length-1], future: [h.present, ...h.future] } : h); }
+  function redo() { setHistory(h => h.future.length ? { past: [...h.past, h.present], present: h.future[0], future: h.future.slice(1) } : h); }
+  function changeVibe(key: keyof Vibes, value: number) { const next = { ...vibes, [key]: value }; setVibes(next); commit(d => applyVibes(d, next, locks)); }
+  function toggleSection(group: Group) { setOpenSections(s => s.includes(group) ? s.filter(g => g !== group) : [...s, group]); }
+  function generate(event: FormEvent) {
+    event.preventDefault();
+    if (!prompt.trim()) return;
+    const next = explorePrompt(system, prompt, vibes, locks);
+    setVibes(next.vibes);
+    commit(next.system);
+    notify("New direction explored. Your locked tokens stayed put.");
+  }
+  function saveSnapshot(event: FormEvent) {
+    event.preventDefault();
+    if (snapshots.length >= 20) { notify("You have 20 snapshots. Remove one to make room."); return; }
+    const snapshot: Snapshot = { id: crypto.randomUUID(), name: snapshotName.trim().slice(0,80) || `Exploration ${snapshots.length + 1}`, system: structuredClone(system), created: new Date().toISOString() };
+    setSnapshots(s => [snapshot, ...s]); setSnapshotName(""); notify("Snapshot saved on this device.");
+  }
+  async function copyExport() {
+    try { await navigator.clipboard.writeText(exportSystem(system, format)); notify("Tokens copied to clipboard."); }
+    catch { notify("Clipboard unavailable. Use Download instead."); }
+  }
+  function downloadExport() {
+    const url = URL.createObjectURL(new Blob([exportSystem(system, format)], { type: format === "css" ? "text/css" : "application/json" }));
+    const a = document.createElement("a"); a.href = url; a.download = `vibecraft-tokens.${format}`; a.click(); URL.revokeObjectURL(url); notify("Your design tokens have been exported.");
+  }
+  const visibleSystem = dark ? darkSystem(system) : system;
+  const pairs: { name: string; role: ColorRole; foreground: string; background: string; target: number; detail: string }[] = [
+    { name: "Body text", role: "text", foreground: visibleSystem.colors.text, background: visibleSystem.colors.background, target: 4.5, detail: "Text on background" },
+    { name: "Secondary text", role: "muted", foreground: visibleSystem.colors.muted, background: visibleSystem.colors.background, target: 4.5, detail: "Muted text on background" },
+    { name: "Card text", role: "text", foreground: visibleSystem.colors.text, background: visibleSystem.colors.surface, target: 4.5, detail: "Text on surface" },
+    { name: "Primary button", role: "primary", foreground: inkOn(visibleSystem.colors.primary), background: visibleSystem.colors.primary, target: 4.5, detail: "Automatic ink on primary" },
+    { name: "Text link", role: "primary", foreground: visibleSystem.colors.primary, background: visibleSystem.colors.background, target: 4.5, detail: "Primary on background" },
+  ];
+  const failing = pairs.filter(p => contrast(p.foreground, p.background) < p.target).length;
+  const comparison = snapshots.find(s => s.id === compareId);
+  const unlocked = Object.values(locks).filter(v => !v).length;
+  const activeFilter = vision === "none" ? undefined : vision === "monochrome" ? "grayscale(1)" : `url(#vision-${vision})`;
+  function canvas(d: DesignSystem, mini = false) {
+    const themed = dark ? darkSystem(d) : d;
+    return <div className={`preview-surface ${mobile && !mini ? "mobile-canvas" : ""} ${mini ? "comparison-surface" : ""} ${reducedMotion ? "reduce-motion" : ""}`} style={{ ...themeStyle(themed), filter: activeFilter }}>
+      {preview === "Marketing page" ? <MarketingPreview onAction={notify}/> : preview === "App dashboard" ? <DashboardPreview onAction={notify}/> : <CheckoutPreview/>}
+    </div>;
+  }
+
+  return <div className="studio-shell">
+    <a href="#canvas" className="skip-link">Skip to preview</a>
+    <header className="studio-header"><div className="studio-identity"><a href="/" className="studio-wordmark" aria-label="VibeCraft home"><span className="logo-shape"><span/><span/><span/><span/></span>VibeCraft<span className="beta-label">STUDIO</span></a><span className="header-divider"/><span className="project-label" title={system.name}>{system.name}</span></div><nav className="workspace-tabs" aria-label="Workspace">{(["Preview", "Components", "Accessibility", "Moodboard"] as Tab[]).map(t => <button key={t} className={tab === t ? "active" : ""} onClick={() => setTab(t)} aria-current={tab === t ? "page" : undefined}><Icon name={t === "Preview" ? "eye" : t === "Components" ? "grid" : t === "Moodboard" ? "layers" : "shield"} size={15}/>{t}{t === "Accessibility" && failing > 0 && <span className="issue-count">{failing}</span>}</button>)}</nav><div className="header-actions"><button className="button subtle snapshots-trigger" onClick={() => setModal("snapshots")}><Icon name="layers" size={15}/><span>Snapshots</span>{snapshots.length > 0 && <span className="count">{snapshots.length}</span>}</button><button className="button dark" onClick={() => setModal("export")}><Icon name="export" size={15}/><span>Export</span></button></div></header>
+    <div className="workspace">
+      <aside className="controls-panel" aria-label="Design controls">
+        <div className="panel-intro"><span className="eyebrow">A LITTLE DIRECTION. ENDLESS POSSIBILITY.</span><h1>What should it<br/><em>feel</em> like?</h1><p>Start with a feeling. Make it your own.</p></div>
+        <form className="vibe-form" onSubmit={generate}><label className="vibe-search"><Icon name="search" size={17}/><input type="search" aria-label="Describe your design vibe" placeholder="Describe a vibe…" value={prompt} maxLength={4000} onChange={e => setPrompt(e.target.value)}/><button type="submit" disabled={!prompt.trim()} aria-label="Explore vibe" title="Explore this direction"><Icon name="arrow" size={17}/></button></label><div className="engine-row"><span className="status-dot"/><span>Your words. A new direction.</span><button type="button" className="icon-button small" aria-label="About exploration" onClick={() => setModal("help")}><Icon name="info" size={13}/></button></div></form>
+        <div className="prompt-starters"><span>TRY A FEELING</span>{["warm ceramic studio", "bold playful pink", "cool minimal tech"].map(idea => <button key={idea} onClick={() => { setPrompt(idea); const next = explorePrompt(system, idea, vibes, locks); setVibes(next.vibes); commit(next.system); notify(`Exploring ${idea}.`); }}>{idea}<span>↗</span></button>)}</div>
+        <div className="vibe-tags">{prompt.split(/[,·]/).map(s => s.trim()).filter(Boolean).slice(0,3).map((tag,i) => <span key={`${tag}-${i}`}>{tag.slice(0,28)}<button aria-label={`Remove keyword ${tag}`} onClick={() => setPrompt(prompt.split(/[,·]/).filter((_,j) => j !== i).join(", "))}><Icon name="close" size={10}/></button></span>)}</div>
+        <section className="vibe-sliders"><button className="section-toggle" aria-expanded={vibesOpen} onClick={() => setVibesOpen(!vibesOpen)}><Icon name="sparkle" size={14}/><span>Vibe continuum</span><Icon name="down" size={13} style={{ transform: vibesOpen ? "rotate(180deg)" : undefined }}/></button>{vibesOpen ? <div className="vibe-ranges">{([ ["warmth", "Cool", "Warm"], ["density", "Airy", "Dense"], ["contrast", "Soft", "Bold"], ["playfulness", "Restrained", "Playful"], ["tactility", "Flat", "Tactile"] ] as [keyof Vibes,string,string][]).map(([key,left,right]) => <label key={key}><span><span>{left}</span><span>{right}</span></span><input aria-label={key} type="range" min="0" max="100" value={vibes[key]} onChange={e => changeVibe(key, +e.target.value)}/></label>)}<p>Locked categories stay as they are.</p></div> : <p className="vibe-summary">{vibes.warmth > 50 ? "Warm" : "Cool"}<span>·</span>{vibes.density < 50 ? "Airy" : "Compact"}<span>·</span>{vibes.playfulness > 50 ? "Expressive" : "Considered"}</p>}</section>
+        <div className="tokens-heading"><h2>YOUR DESIGN DNA</h2><button disabled={!unlocked} onClick={() => { commit(d => rollSystem(d, vibes, locks)); notify(`${unlocked} unlocked categories reimagined.`); }} className="roll-button"><Icon name="roll" size={13}/> Roll {unlocked}</button></div>
+        <div className="token-stack">
+          <TokenSection title="Color palette" icon={<span className="palette-icon"><i/><i/><i/></span>} group="color" open={openSections.includes("color")} onOpen={() => toggleSection("color")} locked={locks.color} onLock={() => setLocks({ ...locks, color: !locks.color })} summary="A world in six colors">
+            <div className="palette-strip">{colorRoles.map(role => <label key={role} style={{ background: system.colors[role] }} title={`${role}: ${system.colors[role]}`}><input type="color" aria-label={`${role} color`} value={system.colors[role]} onChange={e => setColor(role,e.target.value)}/></label>)}</div><div className="color-fields">{colorRoles.map(role => <label key={role}><span className="color-dot" style={{ background: system.colors[role] }}><input type="color" aria-label={`Edit ${role} color`} value={system.colors[role]} onChange={e => setColor(role,e.target.value)}/></span><span>{role}</span><input aria-label={`${role} hex code`} key={`${role}-${system.colors[role]}`} defaultValue={system.colors[role].toUpperCase()} maxLength={7} onBlur={e => { if (/^#[\da-f]{6}$/i.test(e.target.value)) setColor(role,e.target.value); else { e.target.value = system.colors[role].toUpperCase(); notify("Use a six-digit hex color, like #A4472F."); } }} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}/></label>)}</div>
+          </TokenSection>
+          <TokenSection title="Typography" icon={<span className="aa-symbol">Aa</span>} group="typography" open={openSections.includes("typography")} onOpen={() => toggleSection("typography")} locked={locks.typography} onLock={() => setLocks({ ...locks, typography: !locks.typography })} summary={`${system.displayFont} / ${system.bodyFont}`}><label className="select-control">Display font<select value={system.displayFont} onChange={e => patch("displayFont",e.target.value)}>{displayFonts.map(font => <option key={font}>{font}</option>)}</select></label><label className="select-control">Body font<select value={system.bodyFont} onChange={e => patch("bodyFont",e.target.value)}>{bodyFonts.map(font => <option key={font}>{font}</option>)}</select></label><Range label="Type scale" min={1.05} max={1.6} step={0.01} value={system.typeScale} onChange={v => patch("typeScale",v)}/><Range label="Letter spacing" min={-0.08} max={0.1} step={0.005} unit="em" value={system.tracking} onChange={v => patch("tracking",v)}/></TokenSection>
+          <TokenSection title="Shape & depth" icon={<span className="shape-symbol"><i/><i/></span>} group="shape" open={openSections.includes("shape")} onOpen={() => toggleSection("shape")} locked={locks.shape} onLock={() => setLocks({ ...locks, shape: !locks.shape })} summary={`${system.radius}px corners · ${system.depth} shadows`}><Range label="Corner radius" min={0} max={32} value={system.radius} unit="px" onChange={v => patch("radius",v)}/><Range label="Border weight" min={0} max={4} step={0.5} value={system.border} unit="px" onChange={v => patch("border",v)}/><Range label="Spacing" min={12} max={40} value={system.spacing} unit="px" onChange={v => patch("spacing",v)}/><div className="segmented depth-options" aria-label="Shadow style">{(["flat", "soft", "offset", "glass"] as const).map(depth => <button key={depth} aria-pressed={system.depth === depth} className={system.depth === depth ? "selected" : ""} onClick={() => patch("depth",depth)}>{depth}</button>)}</div></TokenSection>
+          <TokenSection title="Microinteractions" icon={<svg viewBox="0 0 30 24" width="27" height="24" fill="none"><path d="M1 21C12 21 9-2 20 5s5 0 9-1" stroke="currentColor" strokeWidth="1.4"/></svg>} group="motion" open={openSections.includes("motion")} onOpen={() => toggleSection("motion")} locked={locks.motion} onLock={() => setLocks({ ...locks, motion: !locks.motion })} summary={`${system.duration}ms · ${system.easing}`}><Range label="Duration" min={80} max={800} step={10} value={system.duration} unit="ms" onChange={v => patch("duration",v)}/><Range label="Hover scale" min={1} max={1.08} step={0.01} value={system.hoverScale} unit="×" onChange={v => patch("hoverScale",v)}/><label className="select-control">Easing<select value={system.easing} onChange={e => patch("easing",e.target.value as DesignSystem["easing"])}><option value="ease-out">Ease out</option><option value="spring">Spring</option><option value="linear">Linear</option></select></label><button className="text-button" onClick={() => { setTab("Components"); setQuery("motion"); }}>Try in the motion playground <span>↗</span></button></TokenSection>
+        </div><div className="panel-footnote"><Icon name="lock" size={12}/><p>Love something? Lock it.<br/>Keep exploring the rest.</p></div>
+      </aside>
+      <main id="canvas" className="canvas-area" tabIndex={-1}>
+        {tab !== "Moodboard" && <div className="canvas-toolbar"><div className="canvas-toolbar-left">{tab === "Preview" ? <div className="segmented scene-tabs">{["Marketing page", "App dashboard", "Checkout form"].map(scene => <button key={scene} className={preview === scene ? "selected" : ""} aria-pressed={preview === scene} onClick={() => setPreview(scene)}>{scene}</button>)}</div> : tab === "Components" ? <label className="component-search"><Icon name="search" size={15}/><input type="search" placeholder="Find a component…" aria-label="Find a component" value={query} onChange={e => setQuery(e.target.value)}/></label> : <div className="toolbar-label"><Icon name="shield" size={15}/> A little care goes a long way.</div>}</div><div className="canvas-toolbar-right">{tab === "Preview" && <div className="segmented icon-segment"><button aria-label="Desktop preview" aria-pressed={!mobile} className={!mobile ? "selected" : ""} onClick={() => setMobile(false)}><Icon name="desktop" size={15}/></button><button aria-label="Mobile preview" aria-pressed={mobile} className={mobile ? "selected" : ""} onClick={() => setMobile(true)}><Icon name="mobile" size={15}/></button></div>}<div className="segmented icon-segment"><button aria-label="Light preview" aria-pressed={!dark} className={!dark ? "selected" : ""} onClick={() => setDark(false)}><Icon name="sun" size={15}/></button><button aria-label="Dark preview" aria-pressed={dark} className={dark ? "selected" : ""} onClick={() => setDark(true)}><Icon name="moon" size={15}/></button></div><span className="toolbar-divider"/><button className="icon-button" aria-label="Undo token change" disabled={!history.past.length} onClick={undo}><Icon name="undo" size={15}/></button><button className="icon-button" aria-label="Redo token change" disabled={!history.future.length} onClick={redo}><Icon name="redo" size={15}/></button></div></div>}
+        {tab === "Moodboard" ? <Moodboard onNotice={notify} onExplore={words => { const next = explorePrompt(system, words, vibes, locks); setPrompt(words); setVibes(next.vibes); commit(next.system); setTab("Preview"); notify("Exploring your reference notes. Locked tokens are preserved."); }}/> : comparison && tab === "Preview" ? <div className="comparison-grid"><div><div className="compare-label"><span>Current exploration</span><span>LIVE</span></div>{canvas(system,true)}</div><div><div className="compare-label"><span>{comparison.name}</span><button onClick={() => setCompareId("")} aria-label="Close comparison"><Icon name="close" size={14}/></button></div>{canvas(comparison.system,true)}</div></div> : tab === "Preview" ? <div className={`canvas-stage ${mobile ? "device-stage" : ""}`}>{canvas(system)}</div> : tab === "Components" ? <div className={`preview-surface gallery-surface ${reducedMotion ? "reduce-motion" : ""}`} style={{ ...themeStyle(visibleSystem), filter: activeFilter }}><div className="gallery-heading"><span className="sample-eyebrow">THE BUILDING BLOCKS</span><h1>Details make the difference.</h1><p>Your tokens, in all their everyday forms.</p></div><ComponentsPreview query={query} onAction={notify}/></div> : <div className="accessibility-view"><div className="accessibility-heading"><span className="eyebrow">DESIGN THAT WELCOMES EVERYONE</span><h1>Good looks. <em>Better access.</em></h1><p>Check the small details that make your system work for more people.</p></div><div className="a11y-summary"><div><span className={`summary-icon ${failing ? "needs-care" : ""}`}><Icon name={failing ? "info" : "check"} size={22}/></span><div><h2>{failing ? `${failing} ${failing === 1 ? "pair needs" : "pairs need"} a little care` : "Your checked pairs look good"}</h2><p>{pairs.length-failing} of {pairs.length} color pairs meet WCAG AA for normal text · {dark ? "dark" : "light"} preview</p></div></div><span className="a11y-label">CONTRAST CHECK</span></div><section className="contrast-list" aria-label="Contrast results">{pairs.map(pair => { const ratio = contrast(pair.foreground,pair.background); const pass = ratio >= pair.target; return <article className="contrast-row" key={pair.name}><span className="contrast-swatch" style={{ color: pair.foreground, background: pair.background }}>Aa</span><div className="contrast-name"><h3>{pair.name}</h3><p>{pair.detail}</p></div><span className="contrast-ratio">{ratio.toFixed(2)}<small>:1</small></span><span className={`result-badge ${pass ? "pass" : "fail"}`}>{pass ? <Icon name="check" size={12}/> : <Icon name="info" size={12}/>} {pass ? ratio >= 7 ? "AAA" : "AA" : "Needs care"}</span>{!pass && !dark ? <button className="button small" onClick={() => { if (pair.name === "Primary button") setColor("primary",fixContrast(system.colors.primary,pair.foreground)); else setColor(pair.role,fixContrast(pair.foreground,pair.background)); notify("Color adjusted to meet 4.5:1 contrast. Review the other pairs too."); }}>Auto-fix <Icon name="sparkle" size={12}/></button> : <span className="contrast-check">{pass ? "4.5:1 minimum" : "Adjust light tokens first"}</span>}</article>; })}</section><div className="a11y-tools"><section><Icon name="eye" size={22}/><h2>A different point of view.</h2><p>Approximate how your palette may appear with different types of color vision.</p><label className="select-control">Color vision simulation<select value={vision} onChange={e => setVision(e.target.value)}><option value="none">Standard vision</option><option value="protanopia">Protanopia (red-blind)</option><option value="deuteranopia">Deuteranopia (green-blind)</option><option value="tritanopia">Tritanopia (blue-blind)</option><option value="monochrome">Monochromacy</option></select></label><div className="simulation-swatches" style={{ filter: activeFilter }}>{colorRoles.map(role => <span key={role} style={{ background: visibleSystem.colors[role] }}/>)}</div><small>Simulation is approximate, not a diagnostic tool.</small></section><section><Icon name="play" size={22}/><h2>A gentler pace.</h2><p>Motion should add delight without getting in the way. Preview a calmer version.</p><label className="motion-setting"><span>Reduce preview motion</span><input type="checkbox" role="switch" checked={reducedMotion} onChange={e => setReducedMotion(e.target.checked)}/></label><p className="motion-detail">Your device’s reduced motion preference is always respected.</p><button className="text-button" onClick={() => { setTab("Components"); setQuery("motion"); }}>Open motion playground <span>↗</span></button></section></div><p className="a11y-disclaimer"><Icon name="info" size={14}/> These checks cover selected text/color pairs, not a complete accessibility audit. Test keyboard use, content, and semantics in your final product.</p></div>}
+        <div className="canvas-status"><span><span className="live-dot"/> All changes, live.</span><button onClick={() => setTab("Accessibility")}><Icon name="shield" size={13}/>{failing ? `${failing} contrast ${failing === 1 ? "pair" : "pairs"} to review` : "Checked colors meet AA"}<Icon name="arrow" size={12}/></button><span className="status-save">{ready ? saveState : "Opening your studio…"}</span></div>
       </main>
     </div>
-  );
+    <footer className="studio-footer"><span>A space for your next <em>something.</em></span><div><span>EXPLORE. REFINE. MAKE IT YOURS.</span><button className="icon-button small" onClick={() => setModal("help")} aria-label="Studio guide"><Icon name="info" size={14}/></button></div></footer>
+    {notice && <div className="toast" role="status"><Icon name="check" size={16}/>{notice}<button aria-label="Dismiss notification" onClick={() => setNotice("")}><Icon name="close" size={13}/></button></div>}
+    {modal === "export" && <Modal title="Take your system with you." onClose={() => setModal(null)}><p className="modal-description">Your current light-mode tokens, ready for your next project. Load the selected fonts in your destination app.</p><div className="segmented export-tabs"><button className={format === "css" ? "selected" : ""} onClick={() => setFormat("css")}>CSS variables</button><button className={format === "json" ? "selected" : ""} onClick={() => setFormat("json")}>Design Tokens JSON</button></div><pre className="export-code" tabIndex={0}>{exportSystem(system,format)}</pre><div className="modal-actions"><button className="button" onClick={copyExport}><Icon name="copy" size={15}/> Copy tokens</button><button className="button dark" onClick={downloadExport}><Icon name="export" size={15}/> Download .{format}</button></div></Modal>}
+    {modal === "snapshots" && <Modal title="Keep the good ones." onClose={() => setModal(null)} wide><p className="modal-description">Save an exploration, come back to it, or put two directions side by side. Stored on this device.</p><form className="snapshot-form" onSubmit={saveSnapshot}><input aria-label="Snapshot name" placeholder={`Name this exploration…`} value={snapshotName} maxLength={80} onChange={e => setSnapshotName(e.target.value)}/><button className="button dark" disabled={snapshots.length >= 20}><Icon name="plus" size={15}/> Save snapshot</button></form>{snapshots.length === 0 ? <div className="empty-state"><Icon name="layers" size={32}/><h3>A little room for possibility.</h3><p>Save your first exploration above. You can keep up to 20.</p></div> : <div className="snapshot-grid">{snapshots.map(snapshot => <article key={snapshot.id} className="snapshot-card"><div className="snapshot-colors">{colorRoles.map(role => <span key={role} style={{ background: snapshot.system.colors[role] }}/>)}</div><div className="snapshot-card-body"><h3>{snapshot.name}</h3><p>{snapshot.system.displayFont} · {snapshot.system.radius}px · {snapshot.system.depth}</p><div><button className="button small" onClick={() => { commit(structuredClone(snapshot.system)); setModal(null); notify(`Restored “${snapshot.name}”.`); }}>Restore</button><button className="button small" onClick={() => { setCompareId(snapshot.id); setTab("Preview"); setMobile(false); setModal(null); }}><Icon name="compare" size={13}/> Compare</button><button className="icon-button" aria-label={`Delete snapshot ${snapshot.name}`} onClick={() => { setSnapshots(s => s.filter(x => x.id !== snapshot.id)); if (compareId === snapshot.id) setCompareId(""); }}><Icon name="trash" size={14}/></button></div></div></article>)}</div>}</Modal>}
+    {modal === "help" && <Modal title="A little room to explore." onClose={() => setModal(null)}><div className="help-content"><p>VibeCraft is your space to turn an abstract feeling into a design system you can see and touch.</p><ol><li><strong>Describe a feeling.</strong> Local exploration translates keywords into a starting direction without API calls. It’s a simple rule-based engine, not an AI model.</li><li><strong>Follow your curiosity.</strong> Adjust color, type, shape, and motion. Every preview shares the same tokens.</li><li><strong>Keep what works.</strong> Lock categories, roll the rest, and save snapshots to compare.</li><li><strong>Make it usable.</strong> Review contrast, try reduced motion, then export your CSS or design tokens.</li></ol><p><strong>Keep asking:</strong> Who is this for? Should it feel established or experimental? Do you want the same personality in a dashboard and a checkout? Try changing one quality at a time and compare snapshots.</p><p>Snapshots and your current system are saved in this browser. Export a copy to keep them beyond this device.</p></div></Modal>}
+    <svg className="vision-filters" aria-hidden="true"><defs><filter id="vision-protanopia" colorInterpolationFilters="sRGB"><feColorMatrix type="matrix" values=".152286 1.052583 -.204868 0 0 .114503 .786281 .099216 0 0 -.003882 -.048116 1.051998 0 0 0 0 0 1 0"/></filter><filter id="vision-deuteranopia" colorInterpolationFilters="sRGB"><feColorMatrix type="matrix" values=".367322 .860646 -.227968 0 0 .280085 .672501 .047413 0 0 -.011820 .042940 .968881 0 0 0 0 0 1 0"/></filter><filter id="vision-tritanopia" colorInterpolationFilters="sRGB"><feColorMatrix type="matrix" values="1.255528 -.076749 -.178779 0 0 -.078411 .930809 .147602 0 0 .004733 .691367 .303900 0 0 0 0 0 1 0"/></filter></defs></svg>
+  </div>;
 }
