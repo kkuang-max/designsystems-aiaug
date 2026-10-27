@@ -39,6 +39,8 @@ The server reads `ANTHROPIC_API_KEY` from `.env.local`. The key is never sent to
 
 Opening the studio only checks whether a key is configured; it does not validate the key with the provider or generate anything. Presets, sliders, rolls, moodboard exploration, and layout changes run locally. Clicking Generate with AI uses API credits. Cancelling a request that has already been sent may still use credits.
 
+Submit the vibe field with Enter (Shift + Enter adds a line). In AI mode, this calls Claude with your brief, current tokens, vibe sliders, and category locks. The returned tokens update the existing preview components; this search styles the supported components rather than generating arbitrary application code.
+
 Run `node --test tests/design-generation.test.mjs` for mocked API tests that never contact a model. Build with `npm run build -- --webpack` if the environment blocks Turbopack’s local worker ports.
 
 The header and tools occupy a fixed viewport shell; the main canvas scrolls. Token editors and vibe sliders open in dialogs so expanded controls do not push the menu down. On small screens, the Tools button opens the menu over the canvas.

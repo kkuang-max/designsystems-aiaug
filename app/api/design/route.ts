@@ -37,13 +37,18 @@ export async function POST(request: Request) {
       providerOptions: { anthropic: { thinking: { type: "disabled" } } },
     });
     if (!isGeneratedDirection(output)) return Response.json({ error: "AI returned unsupported options. Your current design is unchanged. Try a more specific brief." }, { status: 502 });
-    return Response.json({ system: mergeUnlocked(body.system, output.system, body.locks), vibes: output.vibes });
+    return Response.json({ system: mergeUnlocked(body.system, output.system, body.locks), vibes: output.vibes }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     if (APICallError.isInstance(error)) {
       const status = error.statusCode;
       if (status === 401 || status === 403) return Response.json({ error: "The AI key could not authenticate. Check its permissions, or use Local mode." }, { status: 502 });
       if (status === 429) return Response.json({ error: "AI is busy or your usage limit was reached. Try later, or use Local mode." }, { status: 429 });
-      if (status === 400 || status === 402) return Response.json({ error: "The provider rejected the request. Check API credits and ANTHROPIC_MODEL access, or use Local mode." }, { status: 502 });
+      if (status === 400 || status === 402) {
+        const creditError = /credit balance|billing|purchase credits/i.test(error.message || "");
+        return Response.json({ error: creditError
+          ? "Your Anthropic API credit balance is too low. Add API credits in Anthropic’s billing settings, or use Local mode."
+          : "The provider rejected the request. Check API credits and ANTHROPIC_MODEL access, or use Local mode." }, { status: 502 });
+      }
     }
     return Response.json({ error: "AI couldn’t finish this direction. Your current design is unchanged. Try again, or use Local mode." }, { status: 502 });
   }

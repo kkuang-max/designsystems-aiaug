@@ -111,6 +111,14 @@ export default function Home() {
       notify("Local direction explored. No API credits used.");
       return;
     }
+    if (aiConfigured === false) {
+      setGenerationError("Claude isn’t connected. Add the server key or choose Local mode.");
+      return;
+    }
+    if (!Object.values(locks).some(locked => !locked)) {
+      setGenerationError("Unlock a token category so Claude can change it.");
+      return;
+    }
     const controller = new AbortController();
     activeRequest.current = controller;
     setGenerating(true);
@@ -171,9 +179,10 @@ export default function Home() {
       <aside id="design-tools" className={`controls-panel studio-tools ${toolsOpen ? "tools-open" : ""}`} aria-label="Design controls">
         <div className="panel-intro"><h1>What should it feel like?</h1><button type="button" className="icon-button small" aria-label="About exploration" onClick={() => setModal("help")}><Icon name="info" size={14}/></button></div>
         <form className="vibe-form" onSubmit={generate} aria-busy={generating}>
-          <label className="vibe-search"><Icon name="search" size={17}/><textarea aria-label="Describe your design vibe" placeholder="Describe a specific vibe, audience, or style…" value={prompt} maxLength={4000} rows={2} onChange={e => setPrompt(e.target.value)}/></label>
+          <label className="vibe-search"><Icon name="search" size={17}/><textarea aria-label="Describe your design vibe" aria-describedby="vibe-search-help" placeholder="Describe a specific vibe, audience, or style…" value={prompt} maxLength={4000} rows={2} onChange={e => setPrompt(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}/></label>
           <div className="generation-mode"><label>Explore with<select aria-label="Generation mode" value={mode} disabled={generating} onChange={e => { setMode(e.target.value as "ai" | "local"); setGenerationError(""); }}><option value="ai">AI · uses API credits</option><option value="local">Local · no credits</option></select></label>{mode === "ai" && <span>{aiConfigured === true ? "Key connected" : aiConfigured === false ? "Key missing" : "AI generation"}</span>}</div>
           <button className="button dark generate-button" type="submit" disabled={generating || !prompt.trim() || (mode === "ai" && (aiConfigured === false || !Object.values(locks).some(locked => !locked)))}><Icon name="sparkle" size={14}/>{generating ? "Creating your direction…" : mode === "ai" ? "Generate with AI" : "Explore locally"}</button>
+          <p id="vibe-search-help" className="generation-hint">Enter to apply · Shift + Enter for a new line. Updates unlocked colors, type, shape, and motion.</p>
           {generating && <button className="text-button" type="button" onClick={cancelGeneration}>Cancel generation</button>}
           {mode === "ai" && !Object.values(locks).some(locked => !locked) && <p className="generation-hint">Unlock a token category to generate.</p>}
           {mode === "ai" && aiConfigured === false && <p className="generation-hint">Configure the server key or select Local mode.</p>}

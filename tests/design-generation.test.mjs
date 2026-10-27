@@ -84,3 +84,35 @@ test('schema validation rejects unsupported fonts, ranges, and invalid vibe valu
   assert.equal(directionSchema.validate({ system: { ...f.body.system, radius: 100 }, vibes: f.body.vibes }).success, false);
   assert.equal(directionSchema.validate({ system: f.body.system, vibes: { ...f.body.vibes, warmth: Infinity } }).success, false);
 });
+
+test('search returns changes to every component token category with the current studio context', async () => {
+  const seed = fixture();
+  const candidate = {
+    ...seed.body.system,
+    name: 'Electric editorial',
+    colors: { ...seed.body.system.colors, primary: '#7020A0', background: '#FAF5FF' },
+    displayFont: 'Geist', bodyFont: 'Geist Mono', typeScale: 1.4, tracking: -0.01,
+    radius: 24, border: 2, spacing: 32, depth: 'offset',
+    duration: 400, easing: 'spring', hoverScale: 1.06,
+  };
+  const vibes = { ...seed.body.vibes, playfulness: 90 };
+  const f = fixture({ output: { system: candidate, vibes } });
+  const response = await f.route.POST(f.request());
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(await response.json(), { system: candidate, vibes });
+  const context = JSON.parse(f.calls[0].prompt);
+  assert.deepEqual(context.currentSystem, f.body.system);
+  assert.deepEqual(context.vibeSliders, f.body.vibes);
+  assert.deepEqual(context.lockedCategories, f.body.locks);
+});
+
+test('insufficient credits produces an actionable message without exposing provider details', async () => {
+  const f = fixture({ failure: { statusCode: 400, message: 'Your credit balance is too low to access the API. secret-test-value' } });
+  const response = await f.route.POST(f.request());
+  assert.equal(response.status, 502);
+  const body = await response.json();
+  assert.match(body.error, /credit balance is too low/);
+  assert.ok(!body.error.includes('secret-test-value'));
+  assert.equal(f.calls.length, 1);
+});
