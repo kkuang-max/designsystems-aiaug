@@ -1,4 +1,4 @@
-/* Header, tools, and preview toolbar sit outside the only page scroll area. */
+/* The tools panel and preview scroll independently beneath the header. */
 html,
 body {
   width: 100%;
@@ -40,7 +40,11 @@ body {
   align-self: stretch;
   min-width: 0;
   min-height: 0;
-  overflow: clip;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
 }
 
 .studio-main-column {
@@ -110,7 +114,6 @@ body {
     z-index: 30;
     display: block;
     width: min(340px, calc(100vw - 24px));
-    overflow: clip;
   }
 
   .studio-main-column > .canvas-toolbar {

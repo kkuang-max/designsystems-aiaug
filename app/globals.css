@@ -101,7 +101,7 @@
   .canvas-area { padding: 16px 14px 0; }
 }
 
-/* The viewport is the workbench; only its main canvas scrolls. */
+/* Keep the workbench within the viewport; its panels handle scrolling. */
 html, body { height: 100%; overflow: hidden; }
 .studio-footer { flex-shrink: 0; }
 .controls-panel { padding-top: 18px; }
@@ -117,18 +117,6 @@ html, body { height: 100%; overflow: hidden; }
 .generation-hint { font-size: 9px; color: #8f977e; margin-top: 6px; }
 .generation-error { font-size: 10px; color: #996539; background: #f5ebdf; padding: 10px; border-radius: 5px; margin-top: 8px; }
 .generation-error button { display: block; margin-top: 6px; text-decoration: underline; }
-.token-editor { padding: 18px 0 0; }
-.token-editor .select-control { font-size: 12px; }
-.token-editor .select-control select { padding: 9px; font-size: 12px; }
-.token-editor .range-control { margin: 22px 0; }
-.token-editor .range-control > span { font-size: 12px; }
-.token-editor .color-fields { grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 18px; }
-.token-editor .color-fields > label { font-size: 11px; }
-.token-editor .color-fields > label > input { font-size: 11px; width: 75px; }
-.token-editor .color-dot { width: 16px; height: 16px; }
-.token-editor .palette-strip { height: 60px; }
-.studio-modal .vibe-ranges label { margin: 22px 0; }
-.studio-modal .vibe-ranges label > span { font-size: 12px; margin-bottom: 12px; }
 .tools-toggle, .tools-backdrop { display: none; }
 @media (max-width: 760px) {
   .studio-header { min-height: 104px; }
