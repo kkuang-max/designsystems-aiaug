@@ -64,6 +64,52 @@ export function fixContrast(foreground: string, background: string, target = 4.5
   }
   return endpoint;
 }
+
+export function contrastPairs(colors: DesignSystem["colors"]) {
+  return [
+    { name: "Body text", role: "text", foreground: colors.text, background: colors.background, target: 4.5, detail: "Text on background" },
+    { name: "Secondary text", role: "muted", foreground: colors.muted, background: colors.background, target: 4.5, detail: "Muted text on background" },
+    { name: "Card text", role: "text", foreground: colors.text, background: colors.surface, target: 4.5, detail: "Text on surface" },
+    { name: "Primary button", role: "primary", foreground: inkOn(colors.primary), background: colors.primary, target: 4.5, detail: "Automatic ink on primary" },
+    { name: "Text link", role: "primary", foreground: colors.primary, background: colors.background, target: 4.5, detail: "Primary on background" },
+  ] satisfies { name: string; role: ColorRole; foreground: string; background: string; target: number; detail: string }[];
+}
+
+// Search both directions: the closest passing color for one background can fail
+// against another. Test rounded hex values, just as the UI does.
+function accessibleColor(original: string, passes: (color: string) => boolean) {
+  if (passes(original)) return original;
+  const channels = [1, 3, 5].map(i => parseInt(original.slice(i, i + 2), 16));
+  let best: string | undefined;
+  let distance = Infinity;
+  function consider(values: number[]) {
+    const color = `#${values.map(v => v.toString(16).padStart(2, "0")).join("")}`;
+    const delta = values.reduce((sum, v, i) => sum + (v - channels[i]) ** 2, 0);
+    if (delta < distance && passes(color)) { best = color; distance = delta; }
+  }
+  for (let step = 1; step <= 255; step++) {
+    for (const endpoint of [0, 255]) {
+      consider(channels.map(v => Math.round(v + (endpoint - v) * step / 255)));
+    }
+  }
+  // A middle gray can satisfy opposing surfaces even when neither tint path does.
+  for (let value = 0; value <= 255; value++) consider([value, value, value]);
+  return best;
+}
+
+export function fixContrastRole(colors: DesignSystem["colors"], role: "text" | "muted" | "primary"): DesignSystem["colors"] {
+  const passes = (color: string) => contrastPairs({ ...colors, [role]: color })
+    .filter(pair => pair.role === role)
+    .every(pair => contrast(pair.foreground, pair.background) >= pair.target);
+  const color = accessibleColor(colors[role], passes);
+  if (color) return { ...colors, [role]: color };
+
+  // Opposing background/surface colors may have no common readable text color.
+  // Keep the page background and adjust the surface with the text in one edit.
+  const text = accessibleColor(colors.text, candidate => contrast(candidate, colors.background) >= 4.5)!;
+  const surface = accessibleColor(colors.surface, candidate => contrast(text, candidate) >= 4.5)!;
+  return { ...colors, text, surface };
+}
 export function paletteFor(v: Vibes, hue?: number): DesignSystem["colors"] {
   const h = hue ?? (v.warmth > 50 ? 12 + (v.warmth - 50) * 0.6 : 180 + (50 - v.warmth) * 1.5);
   const saturation = 25 + v.playfulness * 0.48;
