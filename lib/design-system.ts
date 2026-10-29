@@ -126,7 +126,7 @@ export function applyVibes(current: DesignSystem, v: Vibes, locks: Locks): Desig
   return {
     ...current,
     ...(!locks.color && { colors: paletteFor(v) }),
-    ...(!locks.typography && { displayFont: v.playfulness > 70 ? "Geist Mono" : v.warmth > 55 ? "Fraunces" : "Geist", typeScale: +(1.12 + (100 - v.density) * 0.002).toFixed(2) }),
+    ...(!locks.typography && { displayFont: v.playfulness > 70 ? "Geist Mono" : v.warmth > 55 ? "Fraunces" : "Geist", bodyFont: v.playfulness > 70 ? "Geist Mono" : v.warmth > 55 ? "DM Sans" : "Geist", typeScale: +(1.12 + (100 - v.density) * 0.002).toFixed(2) }),
     ...(!locks.shape && { radius: Math.round(v.playfulness * 0.28), spacing: Math.round(40 - v.density * 0.28), depth: v.tactility > 75 ? "offset" : v.tactility > 25 ? "soft" : "flat" }),
     ...(!locks.motion && { duration: Math.round(120 + v.playfulness * 3), easing: v.playfulness > 60 ? "spring" : "ease-out" }),
   };
@@ -189,6 +189,28 @@ export function explorePrompt(current: DesignSystem, prompt: string, v: Vibes, l
   const hue = /green|forest|moss/.test(text) ? 125 : /purple|lavender/.test(text) ? 275 : /pink|rose/.test(text) ? 338 : /blue|ocean/.test(text) ? 215 : warm ? 16 + Math.abs(hash % 20) : cool ? 195 + Math.abs(hash % 50) : Math.abs(hash % 360);
   const system = applyVibes(current, nextVibes, locks);
   if (!locks.color) system.colors = paletteFor(nextVibes, hue);
+  if (!locks.typography) {
+    // Typography cues take precedence over inherited warmth/playfulness sliders.
+    if (/\b(mono(?:space)?|terminal|code|typewriter)\b/.test(text)) {
+      system.displayFont = "Geist Mono"; system.bodyFont = "Geist Mono";
+    } else if (/\b(sans(?:-serif)?|minimal|modern|swiss|tech|geometric)\b/.test(text)) {
+      system.displayFont = "Geist"; system.bodyFont = "Geist";
+    } else if (/\b(classic|traditional|literary|bookish)\b/.test(text)) {
+      system.displayFont = "Georgia"; system.bodyFont = "Georgia";
+    } else if (/\b(serif|editorial|elegant|luxury|organic|ceramic)\b/.test(text)) {
+      system.displayFont = "Fraunces"; system.bodyFont = "DM Sans";
+    } else if (/\b(friendly|rounded|playful|fun)\b/.test(text)) {
+      system.displayFont = "DM Sans"; system.bodyFont = "DM Sans";
+    }
+    // Honor named fonts too; two names describe a heading/body pairing.
+    const named = Array.from(text.matchAll(/\b(geist mono|geist|dm sans|fraunces|georgia)\b/g), match =>
+      displayFonts.find(font => font.toLowerCase() === match[1])!);
+    if (named.length) {
+      system.displayFont = named[0];
+      const body = named[named.length - 1];
+      system.bodyFont = (bodyFonts as readonly string[]).includes(body) ? body : "DM Sans";
+    }
+  }
   system.name = prompt.trim().replace(/\s+/g, " ").slice(0, 48);
   system.description = "A local exploration of your words. Fine-tune the tokens below to make it your own.";
   return { system, vibes: nextVibes };

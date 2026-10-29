@@ -150,3 +150,38 @@ test('invalid credentials and denied permissions have distinct safe errors', asy
     assert.equal(f.calls.length, 1);
   }
 });
+
+
+test('a Christmas AI direction applies both fonts while a typography lock preserves the current pair', async () => {
+  const seed = fixture();
+  const candidate = { ...seed.body.system, displayFont: 'DM Sans', bodyFont: 'Geist', colors: { ...seed.body.system.colors, primary: '#B51D28' } };
+  const f = fixture({ output: { system: candidate, vibes: seed.body.vibes } });
+  f.body.prompt = 'christmas, happy, santa';
+  const result = await (await f.route.POST(f.request())).json();
+  assert.equal(result.system.displayFont, 'DM Sans');
+  assert.equal(result.system.bodyFont, 'Geist');
+  assert.equal(JSON.parse(f.calls[0].prompt).brief, f.body.prompt);
+  f.body.locks.typography = true;
+  const locked = await (await f.route.POST(f.request())).json();
+  assert.equal(locked.system.displayFont, f.body.system.displayFont);
+  assert.equal(locked.system.bodyFont, f.body.system.bodyFont);
+  assert.equal(locked.system.colors.primary, '#B51D28');
+});
+
+test('local prompts honor typography styles and supported font names without changing locked type', () => {
+  const { design, body } = fixture();
+  for (const [prompt, display, text] of [
+    ['modern minimal tech', 'Geist', 'Geist'],
+    ['friendly playful', 'DM Sans', 'DM Sans'],
+    ['classic literary', 'Georgia', 'Georgia'],
+    ['terminal monospace', 'Geist Mono', 'Geist Mono'],
+    ['Geist Mono headings, DM Sans body', 'Geist Mono', 'DM Sans'],
+  ]) {
+    const result = design.explorePrompt(body.system, prompt, body.vibes, body.locks).system;
+    assert.equal(result.displayFont, display);
+    assert.equal(result.bodyFont, text);
+    const locked = design.explorePrompt(body.system, prompt, body.vibes, { ...body.locks, typography: true }).system;
+    assert.equal(locked.displayFont, body.system.displayFont);
+    assert.equal(locked.bodyFont, body.system.bodyFont);
+  }
+});
