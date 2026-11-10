@@ -137,3 +137,34 @@ body {
   .workspace-tabs button { font-size: 10px; }
   .workspace-tabs button > svg { display: none; }
 }
+
+.design-reference { margin: 14px 0 10px; padding: 0; border: 0; min-width: 0; }
+.design-reference legend { margin-bottom: 8px; font-size: 11px; font-weight: 600; }
+.design-reference legend span { margin-left: 5px; color: var(--muted); font-weight: 400; }
+.design-reference-drop { padding: 12px; border: 1px dashed #cdd3c2; border-radius: 8px; background: #f5f7f0; }
+.design-reference-drop.dragging { background: #e4eadb; border-color: #677651; }
+.design-reference-drop:focus-visible { outline: 2px solid #7c8965; outline-offset: 3px; }
+.design-reference-drop > p { font-size: 11px; color: #657057; }
+.design-reference-drop small, .design-reference > p { font-size: 10px; color: #7b8372; line-height: 1.5; }
+.design-reference-actions { display: flex; align-items: center; gap: 14px; margin: 9px 0 6px; }
+.design-reference-actions .text-button { font-size: 11px; }
+.design-reference-preview { display: flex; align-items: center; gap: 9px; }
+.design-reference-preview img { width: 60px; height: 64px; object-fit: contain; background: #fff; border-radius: 4px; }
+.design-reference-preview div { flex: 1; min-width: 0; }
+.design-reference-preview strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.design-reference-preview span { display: block; font-size: 10px; color: #7b8372; }
+.design-reference-url { display: grid; gap: 5px; margin: 10px 0 7px; font-size: 10px; color: #657057; }
+.design-reference-url input { width: 100%; min-width: 0; padding: 8px; border: 1px solid #d9dcd2; border-radius: 5px; background: #fff; font-size: 11px; color: var(--ink); }
+
+/* Apply the generated rhythm and geometry across all preview specimens. */
+.preview-surface .sample-nav { padding: calc(var(--p-gap) * .8) var(--p-gap); }
+.preview-surface .sample-hero { gap: calc(var(--p-gap) * 1.5); padding: calc(var(--p-gap) * 1.5) var(--p-gap); }
+.preview-surface .sample-collection, .preview-surface .dashboard-body, .preview-surface .checkout-body { padding: var(--p-gap); }
+.preview-surface .sample-section-heading { margin-bottom: calc(var(--p-gap) * .75); }
+.preview-surface .sample-actions { gap: calc(var(--p-gap) * .7); }
+.preview-surface .sample-primary, .preview-surface .sample-secondary { padding: calc(var(--p-gap) * .5) calc(var(--p-gap) * .8); border-radius: var(--p-radius); }
+.preview-surface .product-image { border-radius: var(--p-radius); border: var(--p-border) solid color-mix(in srgb, var(--p-text) 12%, transparent); box-shadow: var(--p-shadow); }
+.preview-surface .sample-form { gap: calc(var(--p-gap) * .7); }
+.preview-surface .sample-form input:not([type=checkbox]), .preview-surface .sample-search, .preview-surface select { border-radius: calc(var(--p-radius) * .6); border-width: var(--p-border); }
+.preview-surface h2 { letter-spacing: var(--p-tracking); font-size: var(--p-heading); }
+.preview-surface h3 { letter-spacing: var(--p-tracking); font-size: var(--p-subheading); }

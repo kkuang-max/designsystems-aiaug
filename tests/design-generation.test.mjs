@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import ts from 'typescript';
 
 // The provider is mocked. These tests never read a real key or contact a model.
-function fixture({ key = 'test-key', output, failure } = {}) {
+function fixture({ key = 'test-key', output, failure, fetched } = {}) {
   const cache = new Map();
   const calls = [];
   const providerOptions = [];
@@ -14,20 +14,20 @@ function fixture({ key = 'test-key', output, failure } = {}) {
     jsonSchema: (schema, options) => ({ schema, ...options }),
     Output: { object: options => options },
     APICallError: { isInstance: error => typeof error?.statusCode === 'number' },
-    generateText: async options => { calls.push(options); if (failure) throw failure; return { output }; },
+    generateText: async options => { calls.push(options); if (failure) throw failure; return options.tools ? { toolResults: fetched === false ? [] : [{ toolName: "web_fetch", output: { type: "web_fetch_result", content: { source: { type: "text", data: fetched || "A playful creative studio with a focus on joyful products." } } } }] } : { output }; },
   };
   function load(file) {
     if (cache.has(file)) return cache.get(file);
-    const module = { exports: {} };
+    const loadedModule = { exports: {} };
     const source = ts.transpileModule(fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8'), {
       compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
     }).outputText;
     vm.runInNewContext(source, {
-      module, exports: module.exports, Request, Response, AbortSignal, URL, process: { env },
-      require: name => name === 'ai' ? sdk : name === '@ai-sdk/anthropic' ? { createAnthropic: options => { providerOptions.push(options); return name => name; } } : load(name.endsWith('design-generation') ? 'lib/design-generation.ts' : 'lib/design-system.ts'),
+      module: loadedModule, exports: loadedModule.exports, Request, Response, AbortSignal, URL, process: { env },
+      require: name => name === 'ai' ? sdk : name === '@ai-sdk/anthropic' ? { createAnthropic: options => { providerOptions.push(options); return Object.assign(name => name, { tools: { webFetch_20250910: options => options } }); } } : load(name.endsWith('design-generation') ? 'lib/design-generation.ts' : 'lib/design-system.ts'),
     });
-    cache.set(file, module.exports);
-    return module.exports;
+    cache.set(file, loadedModule.exports);
+    return loadedModule.exports;
   }
   const design = load('lib/design-system.ts');
   const route = load('app/api/design/route.ts');
@@ -184,4 +184,66 @@ test('local prompts honor typography styles and supported font names without cha
     assert.equal(locked.displayFont, body.system.displayFont);
     assert.equal(locked.bodyFont, body.system.bodyFont);
   }
+});
+
+const referenceImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aAt8AAAAASUVORK5CYII=';
+function completeReferenceDirection(seed) {
+  return { system: { ...seed.body.system, colors: { ...seed.body.system.colors, primary: '#AB0088' }, displayFont: 'Geist', bodyFont: 'Geist', typeScale: 1.4, tracking: 0, radius: 24, spacing: 32, depth: 'offset', duration: 360, easing: 'spring' }, vibes: seed.body.vibes };
+}
+test('image-only briefs send the real image as multimodal content and update every category', async () => {
+  const seed = fixture();
+  const output = completeReferenceDirection(seed);
+  const f = fixture({ output });
+  const response = await f.route.POST(f.request({ ...f.body, prompt: '', image: referenceImage }));
+  assert.equal(response.status, 200);
+  assert.deepEqual((await response.json()).system, output.system);
+  assert.equal(f.calls[0].messages[0].content[1].data, referenceImage);
+  assert.equal(f.calls[0].messages[0].content[1].mediaType, 'image/png');
+  assert.match(f.calls[0].instructions, /EVERY unlocked category/);
+});
+test('invalid and oversized references never reach the provider', async () => {
+  const f = fixture();
+  for (const input of [
+    { image: 'https://example.com/image.png' }, { image: 'data:image/svg+xml;base64,PHN2Zz4=' },
+    { image: 'data:image/png;base64,broken!' }, { image: 'data:image/png;base64,' },
+    { image: 'data:image/png;base64,' + 'A'.repeat(3_333_340) },
+    { referenceUrl: 'file:///etc/passwd' }, { referenceUrl: 'https://user:pass@example.com' },
+  ]) assert.equal((await f.route.POST(f.request({ ...f.body, ...input }))).status, 400);
+  assert.equal((await f.route.POST(f.request({ ...f.body, image: 'A'.repeat(3_400_000) }))).status, 413);
+  assert.equal(f.calls.length, 0);
+});
+test('reference links are actually fetched and their content informs generation', async () => {
+  const f = fixture({ output: completeReferenceDirection(fixture()), fetched: 'Distinctive reference page content' });
+  const response = await f.route.POST(f.request({ ...f.body, prompt: '', referenceUrl: 'https://example.com/studio' }));
+  assert.equal(response.status, 200);
+  assert.equal(f.calls.length, 2);
+  assert.equal(f.calls[0].toolChoice.toolName, 'web_fetch');
+  assert.deepEqual(Array.from(f.calls[0].tools.web_fetch.allowedDomains), ['example.com']);
+  assert.equal(JSON.parse(f.calls[1].prompt).referenceContent, 'Distinctive reference page content');
+});
+test('unreadable reference links request a screenshot without inventing a style', async () => {
+  const f = fixture({ fetched: false });
+  const response = await f.route.POST(f.request({ ...f.body, referenceUrl: 'https://example.com/blocked' }));
+  assert.equal(response.status, 422);
+  assert.match((await response.json()).error, /screenshot/);
+  assert.equal(f.calls.length, 1);
+});
+test('reference generation rejects color-only results and respects locked categories', async () => {
+  const seed = fixture();
+  const output = completeReferenceDirection(seed);
+  output.system.duration = seed.body.system.duration;
+  output.system.easing = seed.body.system.easing;
+  const f = fixture({ output });
+  const body = { ...f.body, image: referenceImage };
+  const incomplete = await f.route.POST(f.request(body));
+  assert.equal(incomplete.status, 502);
+  assert.match((await incomplete.json()).error, /motion/);
+  body.locks.motion = true;
+  body.locks.typography = true;
+  const response = await f.route.POST(f.request(body));
+  assert.equal(response.status, 200);
+  const result = await response.json();
+  assert.equal(result.system.displayFont, seed.body.system.displayFont);
+  assert.equal(result.system.duration, seed.body.system.duration);
+  assert.equal(result.system.radius, 24);
 });

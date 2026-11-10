@@ -36,3 +36,29 @@ export const directionSchema = jsonSchema<GeneratedDirection>({
     vibes: { type: "object", additionalProperties: false, required: ["warmth", "density", "contrast", "playfulness", "tactility"], properties: { warmth: numeric(0, 100), density: numeric(0, 100), contrast: numeric(0, 100), playfulness: numeric(0, 100), tactility: numeric(0, 100) } },
   },
 }, { validate: value => isGeneratedDirection(value) ? { success: true, value } : { success: false, error: new Error("Unsupported design tokens") } });
+
+// Keep references small enough for the deployed request limit (including base64).
+export const maxReferenceBytes = 2_500_000;
+export function isReferenceImage(value: unknown): value is string {
+  if (typeof value !== "string" || value.length > Math.ceil(maxReferenceBytes / 3) * 4 + 40) return false;
+  const match = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(value);
+  if (!match) return false;
+  const data = match[2];
+  const bytes = data.length * 3 / 4 - (data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0);
+  return data.length % 4 === 0 && bytes > 0 && bytes <= maxReferenceBytes;
+}
+export function isReferenceUrl(value: unknown): value is string {
+  if (typeof value !== "string" || value.length > 2000) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && !url.username && !url.password && url.hostname.includes(".");
+  } catch { return false; }
+}
+export function unchangedCategories(current: DesignSystem, next: DesignSystem, locks: Locks) {
+  const keys = {
+    color: ["colors"], typography: ["displayFont", "bodyFont", "typeScale", "tracking"],
+    shape: ["radius", "border", "spacing", "depth"], motion: ["duration", "easing", "hoverScale"],
+  } as const;
+  return (Object.keys(keys) as (keyof Locks)[]).filter(group => !locks[group]
+    && keys[group].every(key => key === "colors" ? colorRoles.every(role => current.colors[role] === next.colors[role]) : current[key] === next[key]));
+}

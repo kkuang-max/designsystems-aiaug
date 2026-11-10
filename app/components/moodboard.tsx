@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import type { DesignReference } from "./design-reference";
 import { Icon } from "./studio-icon";
 import { Modal } from "./modal";
 
@@ -37,7 +38,7 @@ function ReferenceImage({ reference }: { reference: Reference }) {
   </div>;
 }
 
-export function Moodboard({ onExplore, onNotice }: { onExplore: (words: string) => void; onNotice: (message: string) => void }) {
+export function Moodboard({ onExplore, onNotice }: { onExplore: (words: string, reference: DesignReference) => void; onNotice: (message: string) => void }) {
   const [references, setReferences] = useState<Reference[]>(starters);
   const [ready, setReady] = useState(false);
   const [filter, setFilter] = useState("All");
@@ -101,10 +102,10 @@ export function Moodboard({ onExplore, onNotice }: { onExplore: (words: string) 
   return <section className="moodboard-view" aria-label="Inspiration moodboard">
     <div className="moodboard-heading"><div><span className="eyebrow">FOLLOW WHAT CATCHES YOUR EYE</span><h1>A place for <em>possibility.</em></h1><p>Collect the details you love. Find the feeling that connects them.</p></div><div><button className="button" onClick={download} disabled={!ready}><Icon name="export" size={14}/> Save board</button><button className="button dark" disabled={!ready || references.length >= 30} onClick={() => open()}><Icon name="plus" size={14}/> Add reference</button></div></div>
     <div className="board-tools"><div className="board-filters" aria-label="Reference categories">{["All", ...categories].map(category => <button key={category} className={filter === category ? "active" : ""} aria-pressed={filter === category} onClick={() => setFilter(category)}>{category}</button>)}</div><label className="component-search"><Icon name="search" size={14}/><input aria-label="Search references" placeholder="Find a little inspiration…" value={query} onChange={e => setQuery(e.target.value)}/></label></div>
-    <div className="board-hint"><Icon name="info" size={14}/><p>Start with the sample references, or add your own. “Explore these words” uses your written notes to shape a direction; images are visual references.</p></div>
+    <div className="board-hint"><Icon name="info" size={14}/><p>Start with the sample references, or add your own. “Use reference” attaches your image, link, and notes to the AI generator to inspire the whole design system.</p></div>
     {error && !draft && <p className="board-error" role="alert">{error}</p>}
     {!ready ? <p className="board-hint" role="status">Opening your board…</p> : visible.length ? <div className="reference-grid">{visible.map(reference => <article className="reference-card" key={reference.id}>
-      <ReferenceImage key={reference.image} reference={reference}/><div className="reference-content"><div className="reference-meta"><span>{reference.category}</span><button className="icon-button small" aria-label={`Edit ${reference.title}`} onClick={() => open(reference)}><Icon name="edit" size={13}/></button></div><h2>{reference.title}</h2><p>{reference.notes || "What caught your eye? Add a note to remember."}</p>{reference.source && <a href={reference.source} target="_blank" rel="noopener noreferrer">View original reference <span>↗</span></a>}<div className="reference-actions"><button className="text-button" disabled={!reference.notes.trim()} onClick={() => onExplore(reference.notes)}><Icon name="sparkle" size={13}/> Explore these words</button><button className="icon-button small" aria-label={`Remove ${reference.title}`} onClick={() => { if (persist(references.filter(r => r.id !== reference.id))) onNotice("Reference removed."); }}><Icon name="trash" size={13}/></button></div></div>
+      <ReferenceImage key={reference.image} reference={reference}/><div className="reference-content"><div className="reference-meta"><span>{reference.category}</span><button className="icon-button small" aria-label={`Edit ${reference.title}`} onClick={() => open(reference)}><Icon name="edit" size={13}/></button></div><h2>{reference.title}</h2><p>{reference.notes || "What caught your eye? Add a note to remember."}</p>{reference.source && <a href={reference.source} target="_blank" rel="noopener noreferrer">View original reference <span>↗</span></a>}<div className="reference-actions"><button className="text-button" onClick={() => onExplore(reference.notes || `Inspired by ${reference.title}`, { image: reference.image.startsWith("data:") ? reference.image : undefined, referenceUrl: reference.source || (!reference.image.startsWith("data:") ? reference.image : "") || undefined })}><Icon name="sparkle" size={13}/> Use reference</button><button className="icon-button small" aria-label={`Remove ${reference.title}`} onClick={() => { if (persist(references.filter(r => r.id !== reference.id))) onNotice("Reference removed."); }}><Icon name="trash" size={13}/></button></div></div>
     </article>)}</div> : <div className="empty-state"><Icon name="layers" size={30}/><h2>{references.length ? "Nothing here just yet." : "Make room for inspiration."}</h2><p>{references.length ? "Try another category or search term." : "Add an image, a link, or a feeling worth remembering."}</p><button className="button" onClick={() => references.length ? (setFilter("All"), setQuery("")) : open()}>{references.length ? "Show all references" : "Add your first reference"}</button></div>}
     <p className="board-storage">{references.length}/30 references · Saved in this browser · Save board to download a copy</p>
     {draft && <Modal title={draft.id ? "A detail worth keeping." : "What caught your eye?"} onClose={close}><form className="reference-form" onSubmit={save}>
@@ -114,7 +115,7 @@ export function Moodboard({ onExplore, onNotice }: { onExplore: (words: string) 
       <label className="reference-upload"><Icon name="plus" size={16}/><span>{reading ? "Reading image…" : draft.image.startsWith("data:") ? "Image attached · choose another" : "Or upload an image"}</span><input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={e => upload(e.target.files?.[0])}/><small>PNG, JPG, WebP, GIF · up to 600 KB</small></label>
       {draft.image && <div className="reference-image-status"><span>{draft.image.startsWith("data:") ? "Local image attached" : "Image link added"}</span><button type="button" onClick={() => setDraft({ ...draft, image: "" })}>Remove image</button></div>}
       <label>Original source <span>optional</span><input type="url" maxLength={2000} value={draft.source} placeholder="Link to the creator, website, or original work" onChange={e => setDraft({ ...draft, source: e.target.value })}/></label>
-      <label>What should this bring to your design?<textarea maxLength={1000} rows={3} value={draft.notes} placeholder="Warm, airy, tactile. I love the soft contrast and generous spacing…" onChange={e => setDraft({ ...draft, notes: e.target.value })}/></label><p className="reference-form-note">Describe the feeling in words to explore it in your design system.</p>
+      <label>What should this bring to your design?<textarea maxLength={1000} rows={3} value={draft.notes} placeholder="Warm, airy, tactile. I love the soft contrast and generous spacing…" onChange={e => setDraft({ ...draft, notes: e.target.value })}/></label><p className="reference-form-note">Use this reference to send its image, source link, and notes to the AI generator.</p>
       {error && <p role="alert" className="board-error">{error}</p>}<div className="modal-actions"><button className="button" type="button" onClick={close}>Cancel</button><button className="button dark" disabled={reading} type="submit">{draft.id ? "Save changes" : "Add to moodboard"}</button></div>
     </form></Modal>}
   </section>;

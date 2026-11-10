@@ -11,6 +11,7 @@ export function themeStyle(d: DesignSystem): CSSProperties {
     "--p-on-primary": inkOn(d.colors.primary), "--p-radius": `${d.radius}px`, "--p-border": `${d.border}px`,
     "--p-gap": `${d.spacing}px`, "--p-display": `"${d.displayFont}", ${d.displayFont === "Fraunces" || d.displayFont === "Georgia" ? "serif" : "sans-serif"}`,
     "--p-body": `"${d.bodyFont}", sans-serif`, "--p-tracking": `${d.tracking}em`, "--p-title": `${32 * d.typeScale ** 2}px`,
+    "--p-heading": `${18 * d.typeScale}px`, "--p-subheading": `${12 * d.typeScale}px`,
     "--p-shadow": shadowFor(d), "--p-duration": `${d.duration}ms`, "--p-easing": easingFor(d), "--p-hover": d.hoverScale,
     "--p-glass": d.depth === "glass" ? "blur(16px)" : "none",
   } as CSSProperties;
