@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
+import { Output as RealOutput, jsonSchema as realJsonSchema, NoObjectGeneratedError as RealNoObjectGeneratedError } from 'ai';
 
 // The provider is mocked. These tests never read a real key or contact a model.
-function fixture({ key = 'test-key', output, failure, fetched } = {}) {
+function fixture({ key = 'test-key', output, failure, failures, fetched } = {}) {
   const cache = new Map();
   const calls = [];
   const providerOptions = [];
@@ -15,7 +16,7 @@ function fixture({ key = 'test-key', output, failure, fetched } = {}) {
     Output: { object: options => options },
     APICallError: { isInstance: error => typeof error?.statusCode === 'number' || error?.name === 'AI_APICallError' },
     NoObjectGeneratedError: { isInstance: error => error?.name === 'AI_NoObjectGeneratedError' },
-    generateText: async options => { calls.push(options); if (failure) throw failure; return options.tools ? { toolResults: fetched === false ? [] : [{ toolName: "web_fetch", output: { type: "web_fetch_result", content: { source: { type: "text", data: fetched || "A playful creative studio with a focus on joyful products." } } } }] } : { output }; },
+    generateText: async options => { calls.push(options); const currentFailure = failures ? failures[calls.length - 1] : failure; if (currentFailure) throw currentFailure; return options.tools ? { toolResults: fetched === false ? [] : [{ toolName: "web_fetch", output: { type: "web_fetch_result", content: { source: { type: "text", data: fetched || "A playful creative studio with a focus on joyful products." } } } }] } : { output }; },
   };
   function load(file) {
     if (cache.has(file)) return cache.get(file);
@@ -79,11 +80,13 @@ test('unsupported output and provider failures do not replace the current design
   assert.ok(!(await response.text()).includes('not-for-client'));
   assert.equal(limited.calls.length, 1);
 });
-test('schema validation rejects unsupported fonts, ranges, and invalid vibe values', () => {
+test('schema validation normalizes finite ranges but rejects unsupported fonts and invalid vibe values', () => {
   const f = fixture();
   const { directionSchema } = f.load('lib/design-generation.ts');
   assert.equal(directionSchema.validate({ system: f.body.system, vibes: f.body.vibes }).success, true);
-  assert.equal(directionSchema.validate({ system: { ...f.body.system, radius: 100 }, vibes: f.body.vibes }).success, false);
+  assert.equal(directionSchema.validate({ system: { ...f.body.system, radius: 100 }, vibes: f.body.vibes }).value.system.radius, 32);
+  assert.equal(directionSchema.validate({ system: { ...f.body.system, displayFont: 'Unsupported Font' }, vibes: f.body.vibes }).success, false);
+  assert.equal(f.design.isDesignSystem({ ...f.body.system, radius: 100 }), false);
   assert.equal(directionSchema.validate({ system: f.body.system, vibes: { ...f.body.vibes, warmth: Infinity } }).success, false);
 });
 
@@ -279,4 +282,69 @@ test('link rejection identifies the reference request, while credit failures sta
     assert.equal((await response.json()).code, code);
     assert.equal(f.calls.length, 1);
   }
+});
+
+test('the real SDK output parser normalizes generated image tokens before strict validation', async () => {
+  const f = fixture();
+  const { directionSchema } = f.load('lib/design-generation.ts');
+  const raw = completeReferenceDirection(f);
+  raw.system.name = 'N'.repeat(90);
+  raw.system.description = 'Detailed art direction. '.repeat(50);
+  raw.system.radius = 999;
+  raw.system.spacing = 64;
+  raw.system.tracking = -0.12;
+  raw.system.duration = 1000;
+  raw.system.hoverScale = 1.15;
+  raw.system.colors.primary = '#F0A';
+  raw.vibes.playfulness = 120;
+  const parser = RealOutput.object({ schema: realJsonSchema(directionSchema.schema, { validate: directionSchema.validate }) });
+  const result = await parser.parseCompleteOutput({ text: JSON.stringify(raw) }, { response: {}, usage: {}, finishReason: 'stop' });
+  assert.equal(result.system.radius, 32);
+  assert.equal(result.system.spacing, 40);
+  assert.equal(result.system.tracking, -0.08);
+  assert.equal(result.system.duration, 800);
+  assert.equal(result.system.hoverScale, 1.08);
+  assert.equal(result.system.colors.primary, '#FF00AA');
+  assert.equal(result.system.name.length, 80);
+  assert.equal(result.system.description.length, 600);
+  assert.equal(result.vibes.playfulness, 100);
+  assert.equal(f.design.isDesignSystem(result.system), true);
+  assert.equal(raw.system.radius, 999);
+  raw.system.displayFont = 'Unavailable Font';
+  await assert.rejects(() => parser.parseCompleteOutput({ text: JSON.stringify(raw) }, { response: {}, usage: {}, finishReason: 'stop' }), error => RealNoObjectGeneratedError.isInstance(error));
+});
+test('missing tokens and invalid types are never replaced with defaults', () => {
+  const f = fixture();
+  const { normalizeGeneratedDirection } = f.load('lib/design-generation.ts');
+  for (const invalid of [null, {}, { system: f.body.system }, { system: { ...f.body.system, radius: '12px' }, vibes: f.body.vibes }, { system: { ...f.body.system, bodyFont: 'Comic Sans' }, vibes: f.body.vibes }]) {
+    assert.equal(normalizeGeneratedDirection(invalid), undefined);
+  }
+});
+test('image generation repairs unsupported output once and keeps the original reference', async () => {
+  const seed = fixture();
+  const invalid = completeReferenceDirection(seed);
+  invalid.system.bodyFont = 'Unavailable Font';
+  const failure = { name: 'AI_NoObjectGeneratedError', finishReason: 'stop', text: JSON.stringify(invalid) };
+  const output = completeReferenceDirection(seed);
+  const f = fixture({ failures: [failure], output });
+  const response = await f.route.POST(f.request({ ...f.body, image: referenceImage }));
+  assert.equal(response.status, 200);
+  assert.equal(f.calls.length, 2);
+  assert.deepEqual((await response.json()).system, output.system);
+  assert.equal(f.calls[1].messages[0].content[1].data, referenceImage);
+  assert.match(f.calls[1].messages[0].content[2].text, /Correct the failed design response/);
+  assert.equal(f.calls[0].abortSignal, f.calls[1].abortSignal);
+});
+test('fenced JSON is recovered without another provider call and irreparable output stops after one correction', async () => {
+  const seed = fixture();
+  const output = completeReferenceDirection(seed);
+  const failure = { name: 'AI_NoObjectGeneratedError', finishReason: 'stop', text: '```json\n' + JSON.stringify(output) + '\n```' };
+  const f = fixture({ failure });
+  assert.equal((await f.route.POST(f.request({ ...f.body, image: referenceImage }))).status, 200);
+  assert.equal(f.calls.length, 1);
+  const bad = fixture({ failure: { ...failure, text: 'not valid JSON' } });
+  const response = await bad.route.POST(bad.request());
+  assert.equal(response.status, 502);
+  assert.equal((await response.json()).code, 'OUTPUT_INVALID');
+  assert.equal(bad.calls.length, 2);
 });

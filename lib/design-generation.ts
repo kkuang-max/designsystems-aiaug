@@ -17,6 +17,39 @@ export function isGeneratedDirection(value: unknown): value is GeneratedDirectio
   const d = value as GeneratedDirection;
   return isDesignSystem(d.system) && isVibes(d.vibes);
 }
+const numericRanges = {
+  typeScale: [1.05, 1.6], tracking: [-0.08, 0.1], radius: [0, 32], border: [0, 4],
+  spacing: [12, 40], duration: [80, 800], hoverScale: [1, 1.08],
+} as const;
+
+// The provider removes numeric and length constraints from its native schema.
+// Normalize representational differences before applying our strict validator.
+// Missing values and unsupported fonts/options still require a model correction.
+export function normalizeGeneratedDirection(value: unknown): GeneratedDirection | undefined {
+  if (!value || typeof value !== "object") return;
+  const candidate = value as GeneratedDirection;
+  if (!candidate.system || typeof candidate.system !== "object" || !candidate.vibes || typeof candidate.vibes !== "object") return;
+  const system = { ...candidate.system, colors: { ...candidate.system.colors } };
+  const vibes = { ...candidate.vibes };
+  if (typeof system.name === "string") system.name = system.name.trim().slice(0, 80);
+  if (typeof system.description === "string") system.description = system.description.trim().slice(0, 600);
+  for (const key of Object.keys(numericRanges) as (keyof typeof numericRanges)[]) {
+    const value = system[key];
+    const [min, max] = numericRanges[key];
+    if (typeof value === "number" && Number.isFinite(value)) system[key] = Math.max(min, Math.min(max, value));
+  }
+  for (const key of ["warmth", "density", "contrast", "playfulness", "tactility"] as const) {
+    if (typeof vibes[key] === "number" && Number.isFinite(vibes[key])) vibes[key] = Math.max(0, Math.min(100, vibes[key]));
+  }
+  for (const key of colorRoles) {
+    if (typeof system.colors[key] !== "string") continue;
+    const color = system.colors[key].trim();
+    system.colors[key] = /^#[0-9a-f]{3}$/i.test(color) ? `#${color.slice(1).split("").map(c => c + c).join("")}` : color;
+  }
+  const normalized = { system, vibes };
+  return isGeneratedDirection(normalized) ? normalized : undefined;
+}
+
 const numeric = (minimum: number, maximum: number) => ({ type: "number" as const, minimum, maximum });
 const properties = {
   name: { type: "string" as const, minLength: 1, maxLength: 80 },
@@ -24,9 +57,8 @@ const properties = {
   colors: { type: "object" as const, properties: Object.fromEntries(colorRoles.map(role => [role, { type: "string" as const, pattern: "^#[0-9a-fA-F]{6}$" }])), required: [...colorRoles], additionalProperties: false },
   displayFont: { type: "string" as const, enum: [...displayFonts] },
   bodyFont: { type: "string" as const, enum: [...bodyFonts] },
-  typeScale: numeric(1.05, 1.6), tracking: numeric(-0.08, 0.1), radius: numeric(0, 32), border: numeric(0, 4), spacing: numeric(12, 40),
+  ...Object.fromEntries(Object.entries(numericRanges).map(([key, [min, max]]) => [key, numeric(min, max)])),
   depth: { type: "string" as const, enum: ["flat", "soft", "offset", "glass"] },
-  duration: numeric(80, 800), hoverScale: numeric(1, 1.08),
   easing: { type: "string" as const, enum: ["ease-out", "spring", "linear"] },
 };
 export const directionSchema = jsonSchema<GeneratedDirection>({
@@ -35,7 +67,10 @@ export const directionSchema = jsonSchema<GeneratedDirection>({
     system: { type: "object", additionalProperties: false, required: Object.keys(properties), properties },
     vibes: { type: "object", additionalProperties: false, required: ["warmth", "density", "contrast", "playfulness", "tactility"], properties: { warmth: numeric(0, 100), density: numeric(0, 100), contrast: numeric(0, 100), playfulness: numeric(0, 100), tactility: numeric(0, 100) } },
   },
-}, { validate: value => isGeneratedDirection(value) ? { success: true, value } : { success: false, error: new Error("Unsupported design tokens") } });
+}, { validate: value => {
+  const normalized = normalizeGeneratedDirection(value);
+  return normalized ? { success: true, value: normalized } : { success: false, error: new Error("Missing or unsupported design tokens") };
+} });
 
 // Keep references small enough for the deployed request limit (including base64).
 export const maxReferenceBytes = 2_500_000;

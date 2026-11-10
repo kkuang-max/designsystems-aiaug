@@ -35,7 +35,7 @@ Contrast checks cover selected text/background combinations. Color vision simula
 
 ## AI setup and verification
 
-The server reads `ANTHROPIC_API_KEY` from `.env.local`. The key is never sent to the browser. `ANTHROPIC_MODEL` optionally overrides the default `claude-haiku-5-5` model. Restart the dev server after changing environment variables. AI generation uses structured output restricted to the fonts, token ranges, and styles supported by the studio; locked categories are preserved. Automatic retries are disabled.
+The server reads `ANTHROPIC_API_KEY` from `.env.local`. The key is never sent to the browser. `ANTHROPIC_MODEL` optionally overrides the default `claude-haiku-5-5` model. Restart the dev server after changing environment variables. AI generation uses structured output restricted to the fonts, token ranges, and styles supported by the studio; locked categories are preserved. Provider/network retries are disabled. If the model returns an invalid token format, the server can make one correction request within the same 50-second deadline; that correction also uses API credits. Finite numeric tokens are clamped to the studio’s supported ranges, descriptions are length-limited, and three-digit hex colors are expanded before strict validation. Missing tokens and unsupported fonts still fail validation.
 
 Opening the studio only checks whether a key is configured; it does not validate the key with the provider or generate anything. Presets, sliders, rolls, moodboard exploration, and layout changes run locally. Clicking Generate with AI uses API credits. Cancelling a request that has already been sent may still use credits.
 
