@@ -131,7 +131,11 @@ export default function Home() {
     setGenerating(true);
     try {
       const response = await fetch("/api/design", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt, system, vibes, locks, ...reference }), signal: AbortSignal.any([controller.signal, AbortSignal.timeout(55_000)]) });
-      const data = await response.json();
+      const data = await response.json().catch(() => {
+        throw new Error(response.status === 413 ? "The deployment rejected this image as too large. Try a smaller file."
+          : response.status === 504 ? "The deployment timed out. Try again with a shorter brief or a screenshot instead of a link."
+          : `The deployment returned an unexpected response (${response.status}). Check its function logs.`);
+      });
       if (!response.ok) throw new Error(data.error || "AI couldn’t generate a direction. Try Local mode.");
       if (!isDesignSystem(data.system) || !data.vibes || !Object.keys(initialVibes).every(key => typeof data.vibes[key] === "number" && data.vibes[key] >= 0 && data.vibes[key] <= 100)) throw new Error("AI returned unsupported options. Your current design is unchanged.");
       if (controller.signal.aborted) return;
@@ -139,7 +143,9 @@ export default function Home() {
       setVibes(data.vibes); setTab("Preview");
       notify("Your AI direction is ready. Locked tokens were preserved.");
     } catch (error) {
-      if (!controller.signal.aborted) setGenerationError(error instanceof Error ? error.message : "Generation failed. Try Local mode.");
+      if (!controller.signal.aborted) setGenerationError(error instanceof Error && error.name === "TimeoutError"
+        ? "Generation timed out. Your design is unchanged. Try again with a shorter brief or a screenshot instead of a link."
+        : error instanceof Error ? error.message : "Generation failed. Try Local mode.");
     } finally {
       if (activeRequest.current === controller) { activeRequest.current = null; setGenerating(false); }
     }
@@ -185,7 +191,7 @@ export default function Home() {
         }}>
           <label className="vibe-search"><Icon name="search" size={17}/><textarea aria-label="Describe your design vibe" aria-describedby="vibe-search-help" placeholder="Describe a specific vibe, audience, or style…" value={prompt} maxLength={4000} rows={2} onChange={e => setPrompt(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}/></label>
           <DesignReferenceInput ref={referenceInput} value={reference} onChange={value => { setReference(value); setGenerationError(""); if (value.image || value.referenceUrl) setMode("ai"); }} disabled={generating} onReading={setReadingReference}/>
-          <div className="generation-mode"><label>Explore with<select aria-label="Generation mode" value={mode} disabled={generating} onChange={e => { setMode(e.target.value as "ai" | "local"); setGenerationError(""); }}><option value="ai">AI · uses API credits</option><option value="local" disabled={hasReference}>Local · no credits</option></select></label>{mode === "ai" && <span>{aiConfigured === true ? "Key connected" : aiConfigured === false ? "Key missing" : "AI generation"}</span>}</div>
+          <div className="generation-mode"><label>Explore with<select aria-label="Generation mode" value={mode} disabled={generating} onChange={e => { setMode(e.target.value as "ai" | "local"); setGenerationError(""); }}><option value="ai">AI · uses API credits</option><option value="local" disabled={hasReference}>Local · no credits</option></select></label>{mode === "ai" && <span>{aiConfigured === true ? "Key configured" : aiConfigured === false ? "Key missing" : "AI generation"}</span>}</div>
           <button className="button dark generate-button" type="submit" disabled={generating || readingReference || (!prompt.trim() && !hasReference) || (mode === "ai" && (aiConfigured === false || !Object.values(locks).some(locked => !locked)))}><Icon name="sparkle" size={14}/>{generating ? "Creating your direction…" : mode === "ai" ? "Generate with AI" : "Explore locally"}</button>
           <p id="vibe-search-help" className="generation-hint">Enter to apply · Shift + Enter for a new line. Updates unlocked colors, type, shape, and motion.</p>
           {generating && <button className="text-button" type="button" onClick={cancelGeneration}>Cancel generation</button>}

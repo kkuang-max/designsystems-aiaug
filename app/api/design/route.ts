@@ -1,5 +1,5 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
-import { APICallError, generateText, Output } from "ai";
+import { APICallError, generateText, NoObjectGeneratedError, Output } from "ai";
 import { directionSchema, isGeneratedDirection, isLocks, isVibes, isReferenceImage, isReferenceUrl, unchangedCategories } from "@/lib/design-generation";
 import { isDesignSystem, mergeUnlocked } from "@/lib/design-system";
 
@@ -39,9 +39,11 @@ export async function POST(request: Request) {
   const apiKey = readApiKey();
   if (!apiKey) return Response.json({ error: "Claude’s key is missing from this deployment. Set ANTHROPIC_API_KEY in this Vercel project’s environment variables and redeploy.", code: "KEY_MISSING" }, { status: 503 });
   if (/[\s"']/.test(apiKey)) return Response.json({ error: "The saved Claude key contains extra text or line breaks. In Vercel, the ANTHROPIC_API_KEY value must contain one complete key. Save it and redeploy.", code: "KEY_FORMAT" }, { status: 503 });
+  const modelId = (process.env.ANTHROPIC_MODEL || "claude-haiku-5-5").trim();
+  let stage: "reference" | "generation" = body.referenceUrl ? "reference" : "generation";
   try {
     const anthropic = createAnthropic({ apiKey });
-    const model = anthropic(process.env.ANTHROPIC_MODEL || "claude-haiku-5-5");
+    const model = anthropic(modelId);
     const abortSignal = AbortSignal.any([request.signal, AbortSignal.timeout(50_000)]);
     let referenceContent = "";
     if (body.referenceUrl) {
@@ -62,6 +64,7 @@ export async function POST(request: Request) {
       }
       referenceContent = source.data.slice(0, 24000);
     }
+    stage = "generation";
     const brief = JSON.stringify({ brief: body.prompt.trim() || "Create a complete design direction inspired by this reference.", currentSystem: body.system, vibeSliders: body.vibes, lockedCategories: body.locks, referenceUrl: body.referenceUrl, referenceContent });
     const { output } = await generateText({
       model,
@@ -71,7 +74,7 @@ export async function POST(request: Request) {
         { type: "text" as const, text: brief },
         { type: "file" as const, mediaType: body.image.slice(5, body.image.indexOf(";")), data: body.image },
       ] }] } : { prompt: brief }),
-      maxOutputTokens: 1800,
+      maxOutputTokens: 3200,
       maxRetries: 0,
       abortSignal,
       providerOptions: { anthropic: { thinking: { type: "disabled" } } },
@@ -83,18 +86,43 @@ export async function POST(request: Request) {
     }
     return Response.json({ system: mergeUnlocked(body.system, output.system, body.locks), vibes: output.vibes }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
+    // Do not log raw exceptions: provider errors can contain the key, brief, or image.
+    const name = error instanceof Error ? error.name : "UnknownError";
+    console.error("Design generation failed", {
+      stage, model: modelId, name,
+      status: APICallError.isInstance(error) ? error.statusCode : undefined,
+      finishReason: NoObjectGeneratedError.isInstance(error) ? error.finishReason : undefined,
+    });
+    if (NoObjectGeneratedError.isInstance(error)) {
+      const truncated = error.finishReason === "length";
+      return Response.json({ error: truncated
+        ? "Claude’s design response was cut off before it finished. Your design is unchanged. Try generating again."
+        : "Claude returned a design that didn’t match the supported token format. Your design is unchanged. Try generating again with a shorter brief.",
+      code: truncated ? "OUTPUT_TRUNCATED" : "OUTPUT_INVALID" }, { status: 502 });
+    }
+    if (name === "TimeoutError" || name === "AbortError") {
+      return Response.json({ error: "Claude took too long to respond. Your design is unchanged. Try again; for a reference link, try a screenshot instead.", code: "AI_TIMEOUT" }, { status: 504 });
+    }
     if (APICallError.isInstance(error)) {
       const status = error.statusCode;
       if (status === 401) return Response.json({ error: "Claude rejected the deployed API key as invalid, expired, or revoked (401). Replace ANTHROPIC_API_KEY in this Vercel project and redeploy.", code: "KEY_REJECTED" }, { status: 502 });
       if (status === 403) return Response.json({ error: "Claude denied this key permission to make the request (403). Check the key’s Anthropic workspace and model access.", code: "ACCESS_DENIED" }, { status: 502 });
-      if (status === 429) return Response.json({ error: "AI is busy or your usage limit was reached. Try later, or use Local mode." }, { status: 429 });
+      if (status === 404) return Response.json({ error: "Claude couldn’t find the configured model (404). Check ANTHROPIC_MODEL in this deployment, or remove the override to use the default model, then redeploy.", code: "MODEL_UNAVAILABLE" }, { status: 502 });
+      if (status === 429) return Response.json({ error: "AI is busy or your usage limit was reached. Try later, or use Local mode.", code: "RATE_LIMITED" }, { status: 429 });
+      if (status === 408 || status === 504) return Response.json({ error: "The AI provider timed out. Your design is unchanged. Try generating again.", code: "AI_TIMEOUT" }, { status: 504 });
+      if (status === 413) return Response.json({ error: "Claude rejected the image or brief as too large. Use a smaller image or a shorter brief.", code: "INPUT_TOO_LARGE" }, { status: 413 });
       if (status === 400 || status === 402) {
         const creditError = /credit balance|billing|purchase credits/i.test(error.message || "");
         return Response.json({ error: creditError
           ? "Your Anthropic API credit balance is too low. Add API credits in Anthropic’s billing settings, or use Local mode."
-          : "The provider rejected the request. Check API credits and ANTHROPIC_MODEL access, or use Local mode." }, { status: 502 });
+          : stage === "reference"
+            ? "Claude rejected the reference-link request. Try uploading a screenshot instead, and check that ANTHROPIC_MODEL supports web fetch."
+            : "Claude rejected the design request. Check ANTHROPIC_MODEL access and image format, then try again.",
+        code: creditError ? "CREDITS_EXHAUSTED" : stage === "reference" ? "REFERENCE_REJECTED" : "REQUEST_REJECTED" }, { status: 502 });
       }
+      if (status && status >= 500) return Response.json({ error: "Anthropic is temporarily unavailable. Your design is unchanged. Try again shortly.", code: "PROVIDER_UNAVAILABLE" }, { status: 503 });
+      if (!status) return Response.json({ error: "The server couldn’t connect to Anthropic. Check deployment network access to api.anthropic.com and try again.", code: "AI_CONNECTION_FAILED" }, { status: 502 });
     }
-    return Response.json({ error: "AI couldn’t finish this direction. Your current design is unchanged. Try again, or use Local mode." }, { status: 502 });
+    return Response.json({ error: "The server couldn’t complete AI generation. Check the deployment’s function logs for “Design generation failed” to identify the failing stage. Your design is unchanged.", code: "GENERATION_FAILED" }, { status: 502 });
   }
 }

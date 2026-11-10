@@ -13,7 +13,8 @@ function fixture({ key = 'test-key', output, failure, fetched } = {}) {
   const sdk = {
     jsonSchema: (schema, options) => ({ schema, ...options }),
     Output: { object: options => options },
-    APICallError: { isInstance: error => typeof error?.statusCode === 'number' },
+    APICallError: { isInstance: error => typeof error?.statusCode === 'number' || error?.name === 'AI_APICallError' },
+    NoObjectGeneratedError: { isInstance: error => error?.name === 'AI_NoObjectGeneratedError' },
     generateText: async options => { calls.push(options); if (failure) throw failure; return options.tools ? { toolResults: fetched === false ? [] : [{ toolName: "web_fetch", output: { type: "web_fetch_result", content: { source: { type: "text", data: fetched || "A playful creative studio with a focus on joyful products." } } } }] } : { output }; },
   };
   function load(file) {
@@ -23,7 +24,7 @@ function fixture({ key = 'test-key', output, failure, fetched } = {}) {
       compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
     }).outputText;
     vm.runInNewContext(source, {
-      module: loadedModule, exports: loadedModule.exports, Request, Response, AbortSignal, URL, process: { env },
+      console: { error: () => {} }, Error, module: loadedModule, exports: loadedModule.exports, Request, Response, AbortSignal, URL, process: { env },
       require: name => name === 'ai' ? sdk : name === '@ai-sdk/anthropic' ? { createAnthropic: options => { providerOptions.push(options); return Object.assign(name => name, { tools: { webFetch_20250910: options => options } }); } } : load(name.endsWith('design-generation') ? 'lib/design-generation.ts' : 'lib/design-system.ts'),
     });
     cache.set(file, loadedModule.exports);
@@ -246,4 +247,36 @@ test('reference generation rejects color-only results and respects locked catego
   assert.equal(result.system.displayFont, seed.body.system.displayFont);
   assert.equal(result.system.duration, seed.body.system.duration);
   assert.equal(result.system.radius, 24);
+});
+
+test('generation failures identify model, connectivity, timeout, and provider errors without exposing private details', async () => {
+  const cases = [
+    [{ statusCode: 404 }, 'MODEL_UNAVAILABLE', 502],
+    [{ statusCode: 529 }, 'PROVIDER_UNAVAILABLE', 503],
+    [{ statusCode: 500 }, 'PROVIDER_UNAVAILABLE', 503],
+    [{ statusCode: 408 }, 'AI_TIMEOUT', 504],
+    [{ statusCode: 413 }, 'INPUT_TOO_LARGE', 413],
+    [Object.assign(new Error('private-details test-key'), { name: 'TimeoutError' }), 'AI_TIMEOUT', 504],
+    [{ name: 'AI_APICallError', message: 'private-details test-key' }, 'AI_CONNECTION_FAILED', 502],
+    [{ name: 'AI_NoObjectGeneratedError', finishReason: 'length', text: 'private-details test-key' }, 'OUTPUT_TRUNCATED', 502],
+    [{ name: 'AI_NoObjectGeneratedError', finishReason: 'stop', text: 'private-details test-key' }, 'OUTPUT_INVALID', 502],
+    [new Error('private-details test-key'), 'GENERATION_FAILED', 502],
+  ];
+  for (const [failure, code, status] of cases) {
+    const f = fixture({ failure });
+    const response = await f.route.POST(f.request());
+    assert.equal(response.status, status);
+    const result = await response.json();
+    assert.equal(result.code, code);
+    assert.ok(!result.error.includes('private-details'));
+    assert.ok(!result.error.includes('test-key'));
+  }
+});
+test('link rejection identifies the reference request, while credit failures stay actionable', async () => {
+  for (const [failure, code] of [[{ statusCode: 400 }, 'REFERENCE_REJECTED'], [{ statusCode: 400, message: 'credit balance too low' }, 'CREDITS_EXHAUSTED']]) {
+    const f = fixture({ failure });
+    const response = await f.route.POST(f.request({ ...f.body, referenceUrl: 'https://example.com' }));
+    assert.equal((await response.json()).code, code);
+    assert.equal(f.calls.length, 1);
+  }
 });
